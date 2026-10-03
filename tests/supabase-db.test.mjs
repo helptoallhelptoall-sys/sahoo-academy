@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
 import {inspectCanonicalHtml} from '../scripts/html-import.mjs';
 const student='10000000-0000-4000-8000-000000000001',other='10000000-0000-4000-8000-000000000002',admin='10000000-0000-4000-8000-000000000003';
-const q={id:'q1',number:1,text:'Fixture 🟢 <b>literal</b>',topic:'Fixture topic',options:['one','two','three','four'].map((text,i)=>({id:'o'+i,text})),correctOptionId:'o1',explanation:'Fixture explanation',tags:['SAMPLE'],metadata:{preserved:true}};
+const q={id:'q1',number:1,text:'Fixture 🟢 <b>literal</b>',topic:'Fixture topic',options:['one','two','three','four'].map((text,i)=>({id:'o'+i,text,isCorrect:i===1,correct:i===1,answerKey:'o1',explanation:'private-option-explanation',metadata:{answer:'private-option-answer'},unexpectedHint:'private-option-hint'})),correctOptionId:'o1',explanation:'Fixture explanation',tags:['SAMPLE'],metadata:{preserved:true}};
 test('PostgreSQL migration, RLS, authorized payments/imports/attempts',async t=>{
   const db=new PGlite();
   try{
@@ -39,6 +39,29 @@ test('PostgreSQL migration, RLS, authorized payments/imports/attempts',async t=>
     await t.test('manual approval is atomic, grants calendar term and cannot be replayed',async()=>{await rpc(admin,'adminReviewPayment',{orderId:checkout.order.id,decision:'approve',reason:'Fixture received credit reconciled manually'});const e=(await db.query('select *, expires_at=activated_at+interval \'3 months\' as term from public.entitlements where student_id=$1',[student])).rows[0];assert.equal(e.term,true);await assert.rejects(rpc(admin,'adminReviewPayment',{orderId:checkout.order.id,decision:'approve',reason:'Duplicate approval attempt'}));assert.equal((await rpc(student,'access',{subjectId:'subject'})).state,'active');});
     await t.test('own payment RLS hides another student records and duplicate UTR is rejected',async()=>{await db.exec(`set role authenticated;set request.jwt.claim.sub='${other}'`);assert.equal((await db.query('select * from public.payment_submissions')).rows.length,0);await db.exec('reset role');const p=await rpc(other,'createOrder',{subjectId:'subject',idempotencyKey:crypto.randomUUID()});await assert.rejects(rpc(other,'submitPayment',{orderId:p.order.id,utr:'TESTUTR12345'}));});
     const started=await rpc(student,'start',{testId:'paid',idempotencyKey:crypto.randomUUID()});
+    await t.test('free and premium starts/retries expose only id/text; private records keep complete options',async()=>{
+      const policy=await rpc(null,'policy');
+      for(const testId of ['free','paid']){
+        const payload={testId,idempotencyKey:crypto.randomUUID(),telegramVerified:true,telegramChatId:'-100100',policyVersion:policy.version};
+        for(let retry=0;retry<2;retry++){
+          const response=await rpc(student,'start',payload);
+          assert.equal(response.status,'started');
+          assert.deepEqual(response.page.questions[0].options,q.options.map(({id,text})=>({id,text})));
+          assert.doesNotMatch(JSON.stringify(response),/isCorrect|answerKey|private-option-/);
+          const snapshot=(await db.query('select snapshot from public.attempts where id=$1',[response.page.attemptId])).rows[0].snapshot;
+          assert.deepEqual(snapshot[0].options,q.options);
+          await assert.rejects(rpc(student,'result',{attemptId:response.page.attemptId}));
+          assert.deepEqual(Object.keys(await rpc(student,'saveAttempt',{attemptId:response.page.attemptId,answers:{q1:'o1'}})).sort(),['deadline','saved']);
+        }
+        const original=(await db.query('select original,working from public.imports where test_id=$1',[testId])).rows[0];
+        assert.deepEqual(original.original[0].options,q.options);assert.deepEqual(original.working[0].options,q.options);
+        assert.deepEqual((await db.query('select content from public.questions where test_id=$1',[testId])).rows[0].content.options,q.options);
+      }
+      assert.doesNotMatch(JSON.stringify(await rpc(student,'results')),/isCorrect|answerKey|private-option-|snapshot/);
+      for(const role of ['anon','authenticated'])for(const name of ['academy_api','academy_base_api','academy_internal']){
+        assert.equal((await db.query('select has_function_privilege($1,$2,$3) as allowed',[role,'public.'+name+'(uuid,text,jsonb)','EXECUTE'])).rows[0].allowed,false);
+      }
+    });
     await t.test('authorized question payload omits keys/explanations/metadata; result is owner-only after submission',async()=>{assert.equal(started.status,'started');assert.equal(started.page.questions.length,1);for(const key of ['correctOptionId','explanation','metadata'])assert.equal(key in started.page.questions[0],false);await assert.rejects(rpc(other,'submitAttempt',{attemptId:started.page.attemptId}));await assert.rejects(rpc(student,'result',{attemptId:started.page.attemptId}));await assert.rejects(rpc(student,'saveAttempt',{attemptId:started.page.attemptId,answers:{q1:'forged'}}));const r=await rpc(student,'submitAttempt',{attemptId:started.page.attemptId,answers:{q1:'o1'}});assert.equal(r.score,1);assert.equal(r.review[0].correctOptionId,'o1');assert.equal(r.review[0].explanation,q.explanation);assert.equal((await rpc(student,'submitAttempt',{attemptId:started.page.attemptId,answers:{q1:'o0'}})).score,1);});
     await t.test('expiry and revocation block question starts and answer-key review',async()=>{await db.query("update public.entitlements set activated_at=now()-interval '4 months',expires_at=now()-interval '1 second' where student_id=$1",[student]);assert.equal((await rpc(student,'access',{subjectId:'subject'})).state,'expired');assert.equal((await rpc(student,'start',{testId:'paid',idempotencyKey:crypto.randomUUID()})).status,'denied');await assert.rejects(rpc(student,'result',{attemptId:started.page.attemptId}));await rpc(admin,'adminAccess',{studentId:student,subjectId:'subject',operation:'grant',reason:'Fixture manual grant'});await rpc(admin,'adminAccess',{studentId:student,subjectId:'subject',operation:'revoke',reason:'Fixture manual revoke'});assert.equal((await rpc(student,'access',{subjectId:'subject'})).state,'locked');});
     await t.test('server deadline ignores answers arriving after expiry',async()=>{const p=await rpc(null,'policy');const a=await rpc(student,'start',{testId:'free',telegramVerified:true,telegramChatId:'-100100',policyVersion:p.version,idempotencyKey:crypto.randomUUID()});await db.query("update public.attempts set deadline=now()-interval '1 second' where id=$1",[a.page.attemptId]);assert.equal((await rpc(student,'submitAttempt',{attemptId:a.page.attemptId,answers:{q1:'o1'}})).score,0);});
@@ -75,5 +98,47 @@ test('PostgreSQL migration, RLS, authorized payments/imports/attempts',async t=>
       assert.equal((await rpc(student,'gateContext',{testId:'paid'})).required,false);
       assert.equal((await rpc(student,'start',{testId:'paid',idempotencyKey:crypto.randomUUID()})).status,'started');
     });
+  }finally{await db.close();}
+});
+
+test('security migration protects existing snapshots without changing imports, answers or results',async()=>{
+  const db=new PGlite();
+  const migration='202610040001_safe_attempt_options.sql';
+  try{
+    await db.exec("create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key,raw_user_meta_data jsonb default '{}');create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;");
+    for(const file of fs.readdirSync('supabase/migrations').sort().filter(f=>f<migration))await db.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));
+    await db.query('insert into auth.users(id) values($1),($2)',[admin,student]);
+    await db.query("update public.profiles set role='admin' where id=$1",[admin]);
+    const rpc=async(actor,action,payload={})=>(await db.query('select public.academy_api($1,$2,$3) as result',[actor,action,JSON.stringify(payload)])).rows[0].result;
+    const save=(entity,record)=>rpc(admin,'adminSave',{entity,record});
+    await save('subjects',{id:'upgrade',name:'Upgrade fixture',price_paise:100,validity_months:3,published:true});
+    await save('topics',{id:'upgrade',subject_id:'upgrade',name:'Upgrade fixture',published:true});
+    const record={id:'upgrade',subject_id:'upgrade',topic_id:'upgrade',title:'Upgrade fixture',access:'paid',duration_seconds:600,published:false};
+    await save('tests',record);
+    const source={...q,options:[q.options[3],q.options[1],q.options[0],q.options[2]]};
+    const html='<script type="application/json" id="sahoo-mock-data">'+JSON.stringify({questionCount:1,questions:[source]})+'</script>';
+    await rpc(admin,'adminImport',{testId:'upgrade',html,import:inspectCanonicalHtml(html)});
+    const imp=(await db.query("select id from public.imports where test_id='upgrade'")).rows[0];
+    await rpc(admin,'adminVerifyContent',{importId:imp.id,decision:'approve',reason:'Synthetic upgrade fixture reviewed in full.'});
+    await save('tests',{...record,published:true});
+    await rpc(admin,'adminAccess',{studentId:student,subjectId:'upgrade',operation:'grant',reason:'Synthetic upgrade fixture access'});
+    const payload={testId:'upgrade',idempotencyKey:crypto.randomUUID()};
+    const legacy=await rpc(student,'start',payload);
+    assert.equal(Object.hasOwn(legacy.page.questions[0].options[0],'isCorrect'),true);
+    await rpc(student,'saveAttempt',{attemptId:legacy.page.attemptId,answers:{q1:'o1'},flags:['q1']});
+    const privateRecords=async()=>Promise.all(['imports','questions','attempts'].map(table=>db.query('select * from public.'+table).then(r=>r.rows)));
+    const before=await privateRecords();
+    await db.exec(fs.readFileSync('supabase/migrations/'+migration,'utf8'));
+    assert.deepEqual(await privateRecords(),before);
+    for(const name of ['academy_api','academy_base_api','academy_internal']){
+      const response=(await db.query('select public.'+name+'($1,$2,$3) as result',[student,'start',JSON.stringify(payload)])).rows[0].result;
+      assert.equal(response.page.attemptId,legacy.page.attemptId);
+      assert.deepEqual(response.page.questions[0].options,source.options.map(({id,text})=>({id,text})));
+    }
+    const result=await rpc(student,'submitAttempt',{attemptId:legacy.page.attemptId});
+    assert.equal(result.score,1);assert.equal(result.review[0].correctOptionId,'o1');
+    assert.deepEqual(result.review[0].options,source.options);
+    assert.equal(result.review[0].explanation,source.explanation);
+    assert.deepEqual(await rpc(student,'result',{attemptId:legacy.page.attemptId}),result);
   }finally{await db.close();}
 });

@@ -34,4 +34,3 @@ export function createCommerceViews({icon,link,title,notice,empty,escape,exams,g
   function pricing(){return subjectStore();}
   return {subjectCard,subjectStore,subjectDetail,topicTests,premiumDetail,purchase,orders,orderTab,account,adminOrders,adminPayments,pricing,socialStrip,reviews,steps};
 }
-
