@@ -19,7 +19,7 @@ try{
     assert.equal(await page.locator('meta[name="description"]').getAttribute('content'),expectedDescription);
   }
   checks.push('Exactly one root homepage; requested title/description persist in HTML, server response and rendered home');
-  for(const width of [375,768,1280]){
+  for(const width of [320,375,768,1280]){
     await page.setViewportSize({width,height:900});
     for(const route of ['home','login','register','exams','subject/computer','topic/computer','results','purchase/computer','account','admin','test/percentages']){
       await go(route);
@@ -39,6 +39,24 @@ try{
   assert.equal(await page.evaluate(()=>document.activeElement.textContent.trim()),'Help & support');
   await page.keyboard.press('Escape');assert.equal(await page.locator('.sidebar').evaluate(e=>e.inert),true);
   checks.push('Topic-first homepage, mobile YouTube promotion and updated menu keyboard focus');
+  await page.locator('.menu-button').click();
+  await page.setViewportSize({width:1280,height:900});
+  await page.waitForFunction(()=>!document.querySelector('.sidebar').classList.contains('open'));
+  assert.equal(await page.locator('.sidebar').evaluate(e=>e.inert),false);
+  assert.equal(await page.locator('.menu-button').getAttribute('aria-expanded'),'false');
+  assert.equal(await page.locator('.mobile-shade').evaluate(e=>e.classList.contains('open')),false);
+  await page.locator('.sidebar a').last().focus();await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(()=>document.querySelector('.sidebar').contains(document.activeElement)),false);
+  await page.setViewportSize({width:375,height:900});
+  await page.waitForFunction(()=>document.querySelector('.sidebar').inert);
+  assert.equal(await page.locator('.menu-button').getAttribute('aria-expanded'),'false');
+  await page.locator('.menu-button').click();await page.keyboard.press('Escape');
+  assert.equal(await page.locator('.sidebar').evaluate(e=>e.inert),true);
+  checks.push('Mobile menu closes on desktop resize, releases keyboard focus and reopens correctly on mobile');
+  const footerLinks=await page.locator('.footer-links a').evaluateAll(links=>links.map(a=>a.getAttribute('href')));
+  assert.equal(new Set(footerLinks).size,footerLinks.length);
+  assert.equal(await page.locator('.footer-links a[href="#/help"]').count(),1);
+  checks.push('Footer navigation contains one link per destination, including Help & support');
   await page.setViewportSize({width:1440,height:1000});await go('home');await page.screenshot({path:'test-artifacts/launch-desktop-home.png',fullPage:true});
   for(const route of ['/.env','/private-audits/solar-system-332/working/student-data.json','/supabase/migrations/202610020001_launch.sql','/1%20%20%20%20index.html'])assert.equal((await page.request.get('http://127.0.0.1:4173'+route)).status(),404);
   checks.push('Private source/config/migration files remain outside public serving allowlist');
