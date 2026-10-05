@@ -17,6 +17,6 @@ Pass 1 verifies source/imported counts, IDs, fields, answer references, required
 
 ## Integration boundary
 
-These reusable private adapters run offline and in the implemented Admin-only Supabase import flow; they are not universal HTML converters. Future HTML files can reuse the adapters when their format matches, regardless of subject; unfamiliar formats fail and require a reviewed mapping. Each real file still needs its own count/preservation checks and content review. Real-project configuration and deployment remain pending; see [Supabase setup](../SUPABASE-SETUP.md).
+These reusable private adapters run offline and in the implemented Admin-only Supabase import flow; they are not universal HTML converters. Future HTML files can reuse the adapters when their format matches, regardless of subject; unfamiliar formats fail and require a reviewed mapping. Each real file still needs its own count/preservation checks and content review. The cloud schema and academy-api are deployed; real catalog/content publication and launch setup remain pending. See [Supabase setup](../SUPABASE-SETUP.md).
 
 Test duration, scoring, media and other UI behavior are not guessed from arbitrary uploaded code. Record them as reviewed test configuration alongside the intact source snapshot before publishing. The supplied Solar System source uses 90 minutes and +1/−0.25 scoring; the academy's Q/4 default would otherwise produce 83 minutes. This difference requires an explicit configuration decision, not a silent substitution.

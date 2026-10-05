@@ -1,4 +1,5 @@
 node_modules/
+dist/
 test-artifacts/
 private-audits/
 .env

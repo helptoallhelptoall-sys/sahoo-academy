@@ -24,6 +24,7 @@ try{
     for(const route of ['home','login','register','exams','subject/computer','topic/computer','results','purchase/computer','account','admin','test/percentages']){
       await go(route);
       assert.equal(await page.locator('a[href^="#/admin"]').count(),0);
+      await page.waitForFunction(()=>{const i=document.querySelector('.page-brand img');return i?.complete&&i.naturalWidth>0;});
       assert.equal(await page.locator('.page-brand img').evaluate(i=>i.complete&&i.naturalWidth>0),true);
       assert.doesNotMatch(await page.locator('body').innerText(),/Sahoo Academy/i);
       assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'overflow '+width+' '+route);

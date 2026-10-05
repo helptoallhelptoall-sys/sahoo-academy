@@ -1,8 +1,8 @@
 # Sahoo ExamNexa
 
-Local frontend for Odisha competitive-exam preparation centered on **Topic-wise Mock Tests → Exam → Subject → Topic → Free/Premium Test**. Topic-wise Mock Tests is the primary entry point. The business model provides **three calendar months of subject access** covering included premium tests. Students do not buy individual HTML files. Prices and premium catalog entries are illustrative.
+Sahoo ExamNexa prepares students for Odisha competitive exams through **Topic-wise Mock Tests → Exam → Subject → Topic → Free/Premium Test**. The business model provides **three calendar months of subject access** covering included premium tests. Students do not buy individual HTML files. Disconnected preview prices are illustrative; connected mode uses only published database records.
 
-This continues the existing project: `index.html` is the sole root homepage. The earlier static `1    index.html` was compared with the newer application and removed from the working tree during homepage consolidation; its original contents remain in Git history. The newer design, JavaScript, CSS and Supabase integration are preserved. The repository, local project folder and existing build branch retain their names. The minimum Supabase backend is implemented locally; no cloud project is configured or deployed.
+`index.html` is the sole root homepage. The earlier malformed homepage remains in Git history. The current design, mock-test functionality, importers and Supabase integration are preserved. The Sahoo ExamNexa cloud schema and option-security migration are configured, and `academy-api` is deployed. Public launch still requires reviewed catalog content, Telegram configuration or an Admin OFF decision, payment setup and live Auth delivery checks; see the setup checklist below.
 
 ## Run locally
 
@@ -28,4 +28,23 @@ The real 332-question source/working/audit files and existing importer are uncha
 
 Tests: npm test; npm run test:backend; npm run test:browser; npm run test:backend-browser. Browser suites use installed Edge and Playwright (or PLAYWRIGHT_MODULE). Fixtures are isolated test transport, never a frontend login bypass.
 
-Do not serve the repository root as a public document directory. Use the explicit public-file allowlist and keep .env, SQL, parser scripts and private-audits private. Homepage consolidation is committed only to the existing build branch. No push, PR or deployment is part of this change.
+## GitHub Pages production build
+
+The production URL is [Sahoo ExamNexa on GitHub Pages](https://helptoallhelptoall-sys.github.io/sahoo-academy/). The site uses hash navigation and a `/sahoo-academy/` base path. Local development continues at `/`.
+
+Configure the repository **Actions variables** `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_PUBLISHABLE_KEY` (both already configured). They are browser-safe values, not service-role secrets. `.github/workflows/pages.yml` runs only on `main`, uses `npm ci`, builds the official SDK plus a restricted artifact, and uploads only `dist/` through the official Pages actions. It never uploads the repository directory.
+
+For a local production build, supply those two public environment variables plus `PUBLIC_SITE_URL=https://helptoallhelptoall-sys.github.io/sahoo-academy/`, then run:
+
+```sh
+npm run build:pages
+npm run preview:pages
+```
+
+Open `http://127.0.0.1:4174/sahoo-academy/`. This checks the real static artifact, including its base path, CSP, SDK and generated public configuration. The cloud API allows the production origin only; isolated browser tests mock cloud transport rather than widening cloud CORS for local previews.
+
+`dist/` and `supabase-vendor.js` are generated and ignored by Git. The artifact contains only 19 allowlisted browser files; server code, SQL, tests, dependencies, `.env`, parser scripts and private datasets are excluded. `404.html` preserves deep-link routing with Pages' native HTTP 404 status; normal hash routes return HTTP 200. No service worker caches private data.
+
+Additional checks: `npm run test:pages`, then run `tests/static-browser.mjs` and `tests/supabase-browser.mjs` with `TEST_BASE_URL=http://127.0.0.1:4174/sahoo-academy/` and `PLAYWRIGHT_MODULE` if needed.
+
+**Release step still required:** Pages currently uses legacy `main /` publishing. Change Settings → Pages → Source to **GitHub Actions before merging PR #1**, then approve the merge and monitor the workflow. Do not merge while legacy root publishing remains selected. This preparation does not merge the PR or deploy the website.

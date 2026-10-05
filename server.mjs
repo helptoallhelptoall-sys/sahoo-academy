@@ -4,12 +4,13 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import {metadataFor,sitemap} from './seo.mjs';
+import {publicFiles as browserFiles} from './scripts/public-files.mjs';
 import {validPublicConfig} from './supabase-gateway.js';
 try{process.loadEnvFile('.env');}catch{}
 const candidate={url:process.env.PUBLIC_SUPABASE_URL,publishableKey:process.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY};
 const publicConfig=validPublicConfig(candidate)?candidate:{};
 const root=fileURLToPath(new URL('.',import.meta.url));
-const publicFiles=new Set(['index.html','app.js','data.js','commerce.js','commerce-views.js','management-views.js','import-core.js','launch-access.js','launch-views.js','supabase-gateway.js','supabase-vendor.js','backend-ui.js','styles.css','icon.svg','manifest.webmanifest']);
+const publicFiles=new Set(browserFiles);
 const mime={html:'text/html; charset=utf-8',js:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8',svg:'image/svg+xml',webmanifest:'application/manifest+json'};
 const server=createServer(async(req,res)=>{
   if(!['GET','HEAD'].includes(req.method)){res.writeHead(405);res.end();return;}
