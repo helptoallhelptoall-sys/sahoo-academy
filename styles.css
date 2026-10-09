@@ -27,3 +27,16 @@
 .youtube-button{background:#b52f20;color:#fff;border-color:#b52f20}.youtube-button:hover{background:#942518;color:#fff}.youtube-button:disabled{opacity:.65}.youtube-compact{padding:16px 20px}.hero .youtube-promotion{padding:18px;gap:12px;background:#fff8f5}.hero .youtube-promotion p{color:#55433e;font-size:13px}.hero .youtube-promotion h2{font-size:19px;color:#253d36}.footer-social .youtube-promotion{margin:8px 0}.account-before-mock{margin-bottom:20px}
 @media(max-width:700px){.youtube-promotion{padding:18px;gap:12px}.youtube-actions{width:100%}.youtube-actions .btn{flex:1 1 100%;min-height:44px;white-space:normal;text-align:center}.youtube-promotion h2{font-size:20px}}
 .page-brand{display:flex;align-items:center;gap:9px;margin-bottom:18px;color:var(--ink);font-weight:700;font-size:14px}.page-brand img{flex-shrink:0}.live-test-brand{margin-bottom:10px;font-size:12px}.live-test-brand img{width:24px;height:24px}
+
+/* Decorative repeated branding, isolated behind live question content only. */
+.live-question { position: relative; isolation: isolate; }
+.live-question::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: url("test-watermark.svg") center top / 260px 150px repeat;
+  opacity: .065;
+  pointer-events: none;
+}

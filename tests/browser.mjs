@@ -29,9 +29,9 @@ try{
   await check('topic-first homepage leads through exam, subject, topic and free or premium tests',async()=>{
     await route('home');assert.match(await page.locator('main h1').innerText(),/Topic-wise\s+Mock Tests/);assert.equal(await page.locator('nav[aria-label="Preparation"] a').first().textContent(),'Topic-wise Mock Tests');assert.equal(await page.locator('nav[aria-label="Preparation"] a').first().getAttribute('href'),'#/exams');
     const sections=await page.locator('main .section-head h2').allTextContents();assert.equal(sections[0],'Start with your exam.');await page.locator('.hero-buttons a').first().click();await page.getByRole('heading',{name:'Choose your exam',exact:true}).waitFor();
-    await page.locator('a[href="#/exam/police-si"]').click();await page.locator('a[href="#/subject/quant?exam=police-si"]').click();await page.getByRole('link',{name:'View topic tests'}).first().click();assert.ok((await page.url()).includes('Percentages'));assert.ok((await page.locator('main').innerText()).includes('FREE SAMPLE'));assert.ok((await page.locator('main').innerText()).includes('PREMIUM · LOCKED'));
-    const free=page.getByRole('link',{name:'Try free topic sample'});assert.equal(await free.getAttribute('href'),'#/test/percentages?exam=police-si');await page.getByRole('link',{name:'View test details'}).click();assert.ok(await page.getByRole('link',{name:'View purchase steps'}).count());assert.equal(await page.locator('[data-start]').count(),0);
-    await route('topic/quant?name=Percentages&exam=police-si');await page.getByRole('link',{name:'Try free topic sample'}).click();assert.ok(await page.getByRole('button',{name:'Start Free Mock'}).count());
+    await page.locator('a[href="#/exam/police-si"]').click();await page.locator('a[href="#/subject/quant?exam=police-si"]').click();await page.getByRole('link',{name:'View topic tests'}).first().click();await page.getByRole('heading',{name:'Topic-wise mock tests',exact:true}).waitFor();assert.ok((await page.url()).includes('Percentages'));assert.ok((await page.locator('main').innerText()).includes('FREE SAMPLE'));assert.ok((await page.locator('main').innerText()).includes('PREMIUM · LOCKED'));
+    const free=page.getByRole('link',{name:'Try free topic sample'});assert.equal(await free.getAttribute('href'),'#/test/percentages?exam=police-si');await page.getByRole('link',{name:'View test details'}).click();await page.getByRole('link',{name:'View purchase steps'}).waitFor();assert.ok(await page.getByRole('link',{name:'View purchase steps'}).count());assert.equal(await page.locator('[data-start]').count(),0);
+    await route('topic/quant?name=Percentages&exam=police-si');await page.getByRole('link',{name:'Try free topic sample'}).click();await page.getByRole('button',{name:'Start Free Mock'}).waitFor();assert.ok(await page.getByRole('button',{name:'Start Free Mock'}).count());
     await route('topic/geography?name=Solar%20System&exam=police-si');assert.ok((await page.locator('main').innerText()).includes('No free sample for this topic yet.'));assert.equal(await page.getByRole('link',{name:'Try free topic sample'}).count(),0);
   })();
   await check('ExamNexa metadata is consistent and historical or private banks are not served',async()=>{
@@ -55,6 +55,49 @@ try{
   await check('sample test answers, navigation, clear, flag, cancel submission, scoring and review',async()=>{
     fixtureMode=true;
     await route('test/mixed');await page.getByRole('button',{name:'Start Free Mock'}).click();await page.locator('input[value="2"]').check();await page.getByRole('button',{name:'Clear Response',exact:true}).click();assert.equal(await page.locator('#answered-count').textContent(),'0');await page.locator('input[value="2"]').check();await page.getByRole('button',{name:'Mark for Review',exact:true}).click();assert.equal(await page.locator('[data-action="flag-answer"]').getAttribute('aria-pressed'),'true');await page.locator('.question-grid [data-question="1"]').click();await page.locator('input[value="0"]').check();await page.locator('.question-grid [data-question="0"]').click();assert.ok(await page.locator('input[value="2"]').isChecked());await page.getByRole('button',{name:'Finish & review'}).click();await page.getByRole('button',{name:'Keep practising'}).click();assert.equal(await page.locator('dialog').evaluate(e=>e.open),false);await page.getByRole('button',{name:'Finish & review'}).click();await page.getByRole('button',{name:'Submit sample'}).click();await page.waitForURL('**/#/results');assert.equal(await page.locator('.score-ring b').textContent(),'1/6');assert.ok(await page.getByText('50%',{exact:true}).count());assert.equal(await page.locator('.review-item').count(),6);await page.locator('a[href="#/dashboard"]').first().click();assert.equal(await page.locator('.data-table tbody tr').count(),1);await page.getByRole('button',{name:'Review',exact:true}).click();await page.waitForURL('**/#/results');
+    fixtureMode=false;
+  })();
+  await check('diagonal live watermark stays behind usable CBT controls at desktop and 320px',async()=>{
+    fixtureMode=true;
+    const tile=await context.request.get('http://127.0.0.1:4173/test-watermark.svg');
+    assert.equal(tile.status(),200);
+    assert.match(await tile.text(),/rotate\(-28/);
+    assert.match(await tile.text(),/>Sahoo ExamNexa<\/text>/);
+    for(const width of [1440,320]){
+      await page.setViewportSize({width,height:1000});await route('test/mixed');
+      await page.getByRole('button',{name:'Start Free Mock'}).click();
+      const card=page.locator('.live-question');await card.waitFor();
+      const verifyWatermark=async()=>{
+        const style=await card.evaluate(e=>{const s=getComputedStyle(e,'::before');return {image:s.backgroundImage,repeat:s.backgroundRepeat,opacity:Number(s.opacity),events:s.pointerEvents,z:s.zIndex,content:s.content,isolation:getComputedStyle(e).isolation};});
+        assert.match(style.image,/test-watermark\.svg/);assert.equal(style.repeat,'repeat');
+        assert.ok(style.opacity>0&&style.opacity<=.08);assert.equal(style.events,'none');
+        assert.equal(style.z,'-1');assert.equal(style.content,'""');assert.equal(style.isolation,'isolate');
+        assert.equal(await page.locator('.test-side').evaluate(e=>getComputedStyle(e,'::before').backgroundImage),'none');
+        assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+      };
+      await verifyWatermark();
+      await page.locator('input[value="0"]').check();
+      await page.locator('input[value="0"]').focus();await page.keyboard.press('ArrowDown');
+      assert.ok(await page.locator('input[value="1"]').isChecked());
+      await page.getByRole('button',{name:'Clear Response',exact:true}).focus();await page.keyboard.press('Enter');
+      assert.equal(await page.locator('input[name="answer"]:checked').count(),0);
+      await page.locator('input[value="2"]').check();
+      await page.getByRole('button',{name:'Mark for Review',exact:true}).click();
+      await page.getByRole('button',{name:'Save & Next'}).click();await verifyWatermark();
+      assert.match(await card.innerText(),/Question 2 of/);
+      await page.getByRole('button',{name:'Previous',exact:true}).click();
+      assert.ok(await page.locator('input[value="2"]').isChecked());
+      assert.equal(await page.locator('[data-action="flag-answer"]').getAttribute('aria-pressed'),'true');
+      await page.locator('.question-grid [data-question="1"]').click();await verifyWatermark();
+      assert.match(await page.locator('#timer').innerText(),/\d+:\d{2}/);
+      await card.screenshot({path:`test-artifacts/watermark-${width}.png`});
+      await page.getByRole('button',{name:'Finish & review'}).click();await page.getByRole('button',{name:'Submit sample'}).click();
+      await page.waitForURL('**/#/results');assert.equal(await page.locator('.review-item').count(),6);
+      assert.equal(await page.locator('.live-question').count(),0);
+      assert.match(await page.title(),/Sahoo ExamNexa/);
+      assert.doesNotMatch(await page.locator('body').innerText(),/Sahoo Academy/i);
+    }
+    await page.setViewportSize({width:1440,height:1000});
     fixtureMode=false;
   })();
   await check('timer expiry automatically submits unanswered test',async()=>{
