@@ -1,0 +1,26 @@
+{
+  "name": "sahoo-academy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs",
+    "test": "node --test tests/unit.test.mjs tests/launch-access.test.mjs",
+    "test:browser": "node tests/browser.mjs && node tests/launch-browser.mjs && node tests/launch-branding-browser.mjs",
+    "check": "node --check app.js && node --check launch-access.js && node --check launch-views.js && node --test tests/unit.test.mjs tests/launch-access.test.mjs",
+    "build": "node scripts/build-client.mjs",
+    "test:backend": "node --test tests/supabase-db.test.mjs tests/supabase-edge.test.mjs",
+    "test:backend-browser": "node tests/supabase-browser.mjs",
+    "build:pages": "node scripts/build-static.mjs",
+    "preview:pages": "node scripts/preview-static.mjs",
+    "test:pages": "node --test tests/static-build.test.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.117.2"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "esbuild": "0.28.2"
+  }
+}

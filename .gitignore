@@ -1,0 +1,22 @@
+node_modules/
+dist/
+test-artifacts/
+private-audits/
+.env
+.env.*
+!.env.example
+*.log
+supabase-vendor.js
+supabase/.temp/
+
+# Historical notes retained locally, excluded from the launch commit.
+/BRANDING-REPORT.md
+/IMPLEMENTATION-REPORT.md
+/LAUNCH-PROMOTION-REPORT.md
+/MVP-LAUNCH-REPORT.md
+/SEO-PLAN.md
+/SUPABASE-IMPLEMENTATION-REPORT.md
+/TEST-RESULTS.md
+/BACKEND-INTEGRATION.md
+/architecture/MVP-LAUNCH-ACCESS.md
+/architecture/contracts.d.ts

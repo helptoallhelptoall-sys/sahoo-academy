@@ -1,0 +1,2 @@
+// Shared explicit browser allowlist. Never publish the repository root.
+export const publicFiles = Object.freeze(['index.html','app.js','site-path.js','data.js','commerce.js','commerce-views.js','management-views.js','import-core.js','launch-access.js','launch-views.js','supabase-gateway.js','supabase-vendor.js','backend-ui.js','styles.css','sahoo-examnexa-logo.png','sahoo-examnexa-icon-32.png','sahoo-examnexa-icon-180.png','sahoo-examnexa-icon-192.png','sahoo-examnexa-icon-512.png','test-watermark.svg','manifest.webmanifest']);
