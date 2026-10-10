@@ -73,6 +73,10 @@ try{
   checks.push('Connected student/Admin routes fit phone, tablet and laptop widths');
   assert.equal(await page.locator('.sidebar a[href="#/admin"]').count(),1);
   await go('admin/settings');await page.locator('#live-youtube_name').fill('Sahoo ExamNexa Study');await page.locator('#live-youtube_cta').fill('Subscribe on YouTube');await page.locator('#live-youtube_videos_url').fill('https://www.youtube.com/playlist?list=fixture');await page.locator('#live-telegram_scope').selectOption('selected');await page.locator('#live-telegram_required').selectOption('false');await page.getByRole('button',{name:'Save to database'}).click();await page.getByText('Saved successfully.',{exact:true}).waitFor();
+  await page.waitForFunction(()=>document.querySelector('.page-brand img')?.naturalWidth===1448);
+  assert.equal(await page.locator('.page-brand img').getAttribute('src'),'sahoo-examnexa-logo.png');
+  assert.equal(await page.locator('img[src*="icon.svg"]').count(),0);
+  checks.push('Authenticated private Admin workspace uses the original official logo');
   const savedPolicy=await rpc(null,'policy');assert.equal(savedPolicy.telegramRequired,false);assert.equal(savedPolicy.telegramScope,'selected');assert.equal(savedPolicy.youtubeChannelName,'Sahoo ExamNexa Study');
   await go('home');await page.locator('main .youtube-promotion').waitFor();assert.equal(await page.locator('main .youtube-promotion a').filter({hasText:'Watch Free Study Videos'}).getAttribute('href'),'https://www.youtube.com/playlist?list=fixture');checks.push('Admin-only settings persist promotion and Telegram switches; public promotion updates without a rebuild');
   await page.setViewportSize({width:1280,height:1000});await go('admin/tests');await page.screenshot({path:'test-artifacts/backend-admin-fixture.png',fullPage:true});

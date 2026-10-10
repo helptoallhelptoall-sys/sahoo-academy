@@ -70,7 +70,7 @@ try{
       const verifyWatermark=async()=>{
         const style=await card.evaluate(e=>{const s=getComputedStyle(e,'::before');return {image:s.backgroundImage,repeat:s.backgroundRepeat,opacity:Number(s.opacity),events:s.pointerEvents,z:s.zIndex,content:s.content,isolation:getComputedStyle(e).isolation};});
         assert.match(style.image,/test-watermark\.svg/);assert.equal(style.repeat,'repeat');
-        assert.ok(style.opacity>0&&style.opacity<=.08);assert.equal(style.events,'none');
+        assert.ok(style.opacity>=.10&&style.opacity<=.12);assert.equal(style.events,'none');
         assert.equal(style.z,'-1');assert.equal(style.content,'""');assert.equal(style.isolation,'isolate');
         assert.equal(await page.locator('.test-side').evaluate(e=>getComputedStyle(e,'::before').backgroundImage),'none');
         assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
@@ -145,7 +145,7 @@ try{
     await route('home');const before=page.url();await page.locator('.skip-link').focus();await page.keyboard.press('Enter');assert.equal(page.url(),before);assert.equal(await page.evaluate(()=>document.activeElement.id),'main');
   })();
   await check('no broken local assets, external requests, browser storage or sensitive server files',async()=>{
-    for(const file of ['index.html','app.js','data.js','commerce.js','commerce-views.js','management-views.js','import-core.js','styles.css','icon.svg','manifest.webmanifest','launch-access.js','launch-views.js','robots.txt','sitemap.xml'])assert.equal((await context.request.get(`http://127.0.0.1:4173/${file}`)).status(),200);
+    for(const file of ['index.html','app.js','data.js','commerce.js','commerce-views.js','management-views.js','import-core.js','styles.css','sahoo-examnexa-logo.png','manifest.webmanifest','launch-access.js','launch-views.js','robots.txt','sitemap.xml'])assert.equal((await context.request.get(`http://127.0.0.1:4173/${file}`)).status(),200);
     for(const file of ['.git/config','README.md','package.json','app.js/../../.git/config','scripts/html-import.mjs','subscription-policy.mjs','backend.js','tests/unit.test.mjs','tests/launch-browser-fixture.mjs','tests/launch-access.test.mjs'])assert.equal((await context.request.get(`http://127.0.0.1:4173/${file}`)).status(),404);
     assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);assert.deepEqual(errors,[]);assert.deepEqual(failures,[]);assert.deepEqual(externalRequests,[]);
   })();

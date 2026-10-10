@@ -37,6 +37,15 @@
   z-index: -1;
   border-radius: inherit;
   background: url("test-watermark.svg") center top / 260px 150px repeat;
-  opacity: .065;
+  opacity: .11;
   pointer-events: none;
 }
+
+/* Original official logo: preserve the complete artwork and its 4:3 canvas. */
+.brand{flex-direction:column;gap:0;text-align:center}
+.brand img{width:176px;max-width:100%;height:auto;object-fit:contain}
+.brand>span{font-size:14px}
+.brand small{font-size:8px;letter-spacing:1px}
+.page-brand img{width:100px;height:auto;object-fit:contain}
+.live-test-brand img{width:64px;height:auto}
+@media(max-width:700px){.mobile-brand img{width:72px;height:auto;object-fit:contain}.page-brand{gap:8px}.page-brand img{width:88px}.live-test-brand img{width:64px}}

@@ -35,7 +35,7 @@ test('catalog IDs are unique and test references resolve',()=>{
   for(const t of tests){assert.ok(t.minutes>0);assert.ok(t.ids.length);for(const id of t.ids)assert.ok(questions.find(q=>q.id===id));}
   for(const q of questions){assert.ok(q.options[q.answer]);assert.ok(q.explanation);}
 });
-test('manifest uses only relative local assets',async()=>{const m=JSON.parse(await readFile(new URL('../manifest.webmanifest',import.meta.url),'utf8'));assert.equal(m.scope,'./');assert.equal(m.icons[0].src,'icon.svg');});
+test('manifest uses only relative local assets',async()=>{const m=JSON.parse(await readFile(new URL('../manifest.webmanifest',import.meta.url),'utf8'));assert.equal(m.scope,'./');assert.equal(m.icons[0].src,'sahoo-examnexa-icon-192.png');});
 test('main UI delegates credentials and API calls to the official SDK gateway; no offline cache',async()=>{
   const source=await readFile(new URL('../app.js',import.meta.url),'utf8');
   for(const forbidden of ['localStorage','sessionStorage','serviceWorker.register','fetch(','XMLHttpRequest','service_role','sk_live_'])assert.equal(source.includes(forbidden),false,forbidden);

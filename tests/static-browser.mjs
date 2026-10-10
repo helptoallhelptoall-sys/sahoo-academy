@@ -20,7 +20,7 @@ try{
  await page.goto(base+'subject/geography?exam=example');await page.getByRole('heading',{name:'Fixture geography',exact:true}).waitFor();assert.equal(await page.evaluate(()=>document.baseURI),base);assert.match(await page.title(),/Sahoo ExamNexa/);
  await page.goto(base+'does-not-exist');await page.getByRole('heading',{name:'Let’s get you back on track.'}).waitFor();
  for(const f of ['.env','supabase/migrations/202610020001_launch.sql','tests/unit.test.mjs','private-audits/solar-system-332/working/student-records.json','package.json'])assert.equal((await page.request.get(base+f)).status(),404);
- const manifest=await(await page.request.get(base+'manifest.webmanifest')).json();assert.equal(new URL(manifest.start_url,base).href,base);assert.equal(new URL(manifest.icons[0].src,base).href,base+'icon.svg');
+ const manifest=await(await page.request.get(base+'manifest.webmanifest')).json();assert.equal(new URL(manifest.start_url,base).href,base);assert.equal(new URL(manifest.icons[0].src,base).href,base+'sahoo-examnexa-icon-192.png');
  assert.deepEqual(errors,[]);assert.deepEqual(failed,[]);assert.deepEqual(consoleErrors,[]);
  console.log('PASS artifact allowlist/assets, public config, Pages base, hash/deep links/404, mobile, Auth redirect, manifest and private-file denial; no page errors or failed requests.');
 }finally{await browser.close();}

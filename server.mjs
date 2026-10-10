@@ -11,7 +11,7 @@ const candidate={url:process.env.PUBLIC_SUPABASE_URL,publishableKey:process.env.
 const publicConfig=validPublicConfig(candidate)?candidate:{};
 const root=fileURLToPath(new URL('.',import.meta.url));
 const publicFiles=new Set(browserFiles);
-const mime={html:'text/html; charset=utf-8',js:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8',svg:'image/svg+xml',webmanifest:'application/manifest+json'};
+const mime={html:'text/html; charset=utf-8',js:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8',png:'image/png',svg:'image/svg+xml',webmanifest:'application/manifest+json'};
 const server=createServer(async(req,res)=>{
   if(!['GET','HEAD'].includes(req.method)){res.writeHead(405);res.end();return;}
   let file,url;
