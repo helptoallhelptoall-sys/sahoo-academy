@@ -2,7 +2,7 @@
 
 Sahoo ExamNexa prepares students for Odisha competitive exams through **Topic-wise Mock Tests → Exam → Subject → Topic → Free/Premium Test**. The business model provides **three calendar months of subject access** covering included premium tests. Students do not buy individual HTML files. Disconnected preview prices are illustrative; connected mode uses only published database records.
 
-`index.html` is the sole root homepage. The earlier malformed homepage remains in Git history. The current design, mock-test functionality, importers and Supabase integration are preserved. The Sahoo ExamNexa cloud schema and option-security migration are configured, and `academy-api` is deployed. Public launch still requires reviewed catalog content, Telegram configuration or an Admin OFF decision, payment setup and live Auth delivery checks; see the setup checklist below.
+`index.html` is the sole root homepage. The earlier malformed homepage remains in Git history. The current design, mock-test functionality, importers and Supabase integration are preserved. The Sahoo ExamNexa cloud schema and option-security migration are configured, and `academy-api` is deployed. The approved 41-question FREE Solar System test is published in the backend; Telegram is OFF and paid sales remain disabled. The new recovery/Questions features still require the release configuration and live Auth delivery checks described below.
 
 ## Run locally
 
@@ -47,4 +47,6 @@ Open `http://127.0.0.1:4174/sahoo-academy/`. This checks the real static artifac
 
 Additional checks: `npm run test:pages`, then run `tests/static-browser.mjs` and `tests/supabase-browser.mjs` with `TEST_BASE_URL=http://127.0.0.1:4174/sahoo-academy/` and `PLAYWRIGHT_MODULE` if needed.
 
-**Release step still required:** Pages currently uses legacy `main /` publishing. Change Settings → Pages → Source to **GitHub Actions before merging PR #1**, then approve the merge and monitor the workflow. Do not merge while legacy root publishing remains selected. This preparation does not merge the PR or deploy the website.
+**Release step still required:** Preserve the previously configured GitHub Actions Pages source. Merge PR #1 and deploy only after owner approval and the pending backend/Auth setup below. This feature task does not merge the PR or deploy the website.
+
+The pending release adds **Forgot password?** and a permanent `reset-password.html` callback, plus private **Admin → Questions** manual draft entry/editing. **HTML Imports remains available separately.** Published questions cannot be edited in place, and draft edits invalidate review. Placement is inherited from the selected draft test. The new Questions migration, Edge API update and production Auth callback allowlist require separate release approval; see [SUPABASE-SETUP.md](SUPABASE-SETUP.md). Local/isolated tests do not mean these features are already enabled in cloud.

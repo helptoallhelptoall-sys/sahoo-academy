@@ -1,3 +1,4 @@
+const testOrigin=(process.env.TEST_BASE_URL||'http://127.0.0.1:4173').replace(/\/$/,'');
 import {authorizedModule} from './launch-browser-fixture.mjs';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -16,7 +17,7 @@ page.on('pageerror',e=>errors.push(e.message));
 page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
 page.on('requestfailed',r=>failures.push(`${r.url()}: ${r.failure()?.errorText}`));
 const check=(name,fn)=>async()=>{await fn();checks.push(name);console.log(`PASS ${name}`);};
-const route=async(path)=>{await page.goto(`http://127.0.0.1:4173/#/${path}`);if(loadedFixtureMode!==fixtureMode){await page.reload();loadedFixtureMode=fixtureMode;}await page.locator('#main').waitFor();await page.waitForFunction(()=>document.querySelector('#app')?.dataset.authStatus!=='checking');};
+const route=async(path)=>{await page.goto(`${testOrigin}/#/${path}`);if(loadedFixtureMode!==fixtureMode){await page.reload();loadedFixtureMode=fixtureMode;}await page.locator('#main').waitFor();await page.waitForFunction(()=>document.querySelector('#app')?.dataset.authStatus!=='checking');};
 await mkdir('test-artifacts',{recursive:true});
 try{
   await check('all primary routes render without horizontal overflow at 375, 768, 1280 and 1440 pixels',async()=>{
@@ -35,9 +36,9 @@ try{
     await route('topic/geography?name=Solar%20System&exam=police-si');assert.ok((await page.locator('main').innerText()).includes('No free sample for this topic yet.'));assert.equal(await page.getByRole('link',{name:'Try free topic sample'}).count(),0);
   })();
   await check('ExamNexa metadata is consistent and historical or private banks are not served',async()=>{
-    for(const path of ['/','/exams','/subject/geography','/topic/quant?name=Percentages']){const response=await context.request.get('http://127.0.0.1:4173'+path);assert.equal(response.status(),200);const html=await response.text();assert.match(html,/<title>[^<]*Sahoo ExamNexa/);assert.doesNotMatch(html,/Sahoo Academy/i);}
-    const manifest=await(await context.request.get('http://127.0.0.1:4173/manifest.webmanifest')).json();assert.equal(manifest.name,'Sahoo ExamNexa');assert.equal(manifest.short_name,'Sahoo ExamNexa');
-    for(const path of ['1%20%20%20%20index.html','private-audits/solar-system-332/working/student-records.json','private-audits/solar-system-332/working/canonical-import.json','private-audits/solar-system-332/working/correction-audit.json','private-audits/solar-system-332/working/post-correction-report.md','scripts/source-array-import.mjs'])assert.equal((await context.request.get('http://127.0.0.1:4173/'+path)).status(),404,path);
+    for(const path of ['/','/exams','/subject/geography','/topic/quant?name=Percentages']){const response=await context.request.get(testOrigin+path);assert.equal(response.status(),200);const html=await response.text();assert.match(html,/<title>[^<]*Sahoo ExamNexa/);assert.doesNotMatch(html,/Sahoo Academy/i);}
+    const manifest=await(await context.request.get(testOrigin+'/manifest.webmanifest')).json();assert.equal(manifest.name,'Sahoo ExamNexa');assert.equal(manifest.short_name,'Sahoo ExamNexa');
+    for(const path of ['1%20%20%20%20index.html','private-audits/solar-system-332/working/student-records.json','private-audits/solar-system-332/working/canonical-import.json','private-audits/solar-system-332/working/correction-audit.json','private-audits/solar-system-332/working/post-correction-report.md','scripts/source-array-import.mjs'])assert.equal((await context.request.get(testOrigin+'/'+path)).status(),404,path);
     await route('admin/html-imports');assert.ok(await page.getByRole('heading',{name:'Admin sign-in required'}).count());assert.equal(await page.locator('input[type=file]').count(),0);
   })();
   await check('exam search and organization filters support matches and empty results',async()=>{
@@ -59,7 +60,7 @@ try{
   })();
   await check('diagonal live watermark stays behind usable CBT controls at desktop and 320px',async()=>{
     fixtureMode=true;
-    const tile=await context.request.get('http://127.0.0.1:4173/test-watermark.svg');
+    const tile=await context.request.get(testOrigin+'/test-watermark.svg');
     assert.equal(tile.status(),200);
     assert.match(await tile.text(),/rotate\(-28/);
     assert.match(await tile.text(),/>Sahoo ExamNexa<\/text>/);
@@ -139,14 +140,14 @@ try{
 
   await check('Admin routes remain private without authenticated Admin credentials',async()=>{for(const path of ['admin/exams','admin/payments','admin/access','admin/settings','admin/html-imports']){await route(path);assert.ok(await page.getByRole('heading',{name:'Admin sign-in required'}).count());assert.equal(await page.locator('main form,main table,main input').count(),0);}})();
   await check('public clean routes have server metadata and preview indexing is blocked',async()=>{
-    const res=await context.request.get('http://127.0.0.1:4173/subject/geography');assert.equal(res.status(),200);assert.ok((await res.text()).includes('Geography – 3 Months Access'));assert.ok(res.headers()['x-robots-tag'].includes('noindex'));await page.goto('http://127.0.0.1:4173/subject/geography');await page.locator('main h1').waitFor();assert.ok((await page.title()).includes('Geography'));assert.equal(await page.getByRole('heading',{name:'Geography – 3 Months Access',exact:true}).count(),1);const xml=await (await context.request.get('http://127.0.0.1:4173/sitemap.xml')).text();assert.ok(xml.includes('/subject/geography'));assert.equal(xml.includes('/admin'),false);const robots=await (await context.request.get('http://127.0.0.1:4173/robots.txt')).text();assert.ok(robots.includes('Disallow: /'));
+    const res=await context.request.get(testOrigin+'/subject/geography');assert.equal(res.status(),200);assert.ok((await res.text()).includes('Geography – 3 Months Access'));assert.ok(res.headers()['x-robots-tag'].includes('noindex'));await page.goto(testOrigin+'/subject/geography');await page.locator('main h1').waitFor();assert.ok((await page.title()).includes('Geography'));assert.equal(await page.getByRole('heading',{name:'Geography – 3 Months Access',exact:true}).count(),1);const xml=await (await context.request.get(testOrigin+'/sitemap.xml')).text();assert.ok(xml.includes('/subject/geography'));assert.equal(xml.includes('/admin'),false);const robots=await (await context.request.get(testOrigin+'/robots.txt')).text();assert.ok(robots.includes('Disallow: /'));
   })();
   await check('skip link keeps the route intact and focuses main content',async()=>{
     await route('home');const before=page.url();await page.locator('.skip-link').focus();await page.keyboard.press('Enter');assert.equal(page.url(),before);assert.equal(await page.evaluate(()=>document.activeElement.id),'main');
   })();
   await check('no broken local assets, external requests, browser storage or sensitive server files',async()=>{
-    for(const file of ['index.html','app.js','data.js','commerce.js','commerce-views.js','management-views.js','import-core.js','styles.css','sahoo-examnexa-logo.png','manifest.webmanifest','launch-access.js','launch-views.js','robots.txt','sitemap.xml'])assert.equal((await context.request.get(`http://127.0.0.1:4173/${file}`)).status(),200);
-    for(const file of ['.git/config','README.md','package.json','app.js/../../.git/config','scripts/html-import.mjs','subscription-policy.mjs','backend.js','tests/unit.test.mjs','tests/launch-browser-fixture.mjs','tests/launch-access.test.mjs'])assert.equal((await context.request.get(`http://127.0.0.1:4173/${file}`)).status(),404);
+    for(const file of ['index.html','app.js','data.js','commerce.js','commerce-views.js','management-views.js','import-core.js','styles.css','sahoo-examnexa-logo.png','manifest.webmanifest','launch-access.js','launch-views.js','robots.txt','sitemap.xml'])assert.equal((await context.request.get(`${testOrigin}/${file}`)).status(),200);
+    for(const file of ['.git/config','README.md','package.json','app.js/../../.git/config','scripts/html-import.mjs','subscription-policy.mjs','backend.js','tests/unit.test.mjs','tests/launch-browser-fixture.mjs','tests/launch-access.test.mjs'])assert.equal((await context.request.get(`${testOrigin}/${file}`)).status(),404);
     assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);assert.deepEqual(errors,[]);assert.deepEqual(failures,[]);assert.deepEqual(externalRequests,[]);
   })();
   await route('test/percentages');await page.screenshot({path:'test-artifacts/launch-access-mobile.png',fullPage:true});await route('home');await page.screenshot({path:'test-artifacts/home-mobile.png',fullPage:true});await page.setViewportSize({width:1440,height:1100});await page.screenshot({path:'test-artifacts/home-desktop.png',fullPage:true});await route('admin/html-imports');await page.screenshot({path:'test-artifacts/admin-desktop.png',fullPage:true});

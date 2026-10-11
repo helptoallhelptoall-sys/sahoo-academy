@@ -1,3 +1,4 @@
+const testOrigin=(process.env.TEST_BASE_URL||'http://127.0.0.1:4173').replace(/\/$/,'');
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {writeFile} from 'node:fs/promises';
@@ -6,7 +7,7 @@ const require=createRequire(import.meta.url),{chromium}=require(process.env.PLAY
 const browser=await chromium.launch({channel:process.env.BROWSER_CHANNEL||'msedge',headless:true});
 const context=await browser.newContext({viewport:{width:375,height:812}}),page=await context.newPage();
 const errors=[],checks=[];page.on('pageerror',e=>errors.push(e.message));
-const base='http://127.0.0.1:4173/';
+const base=testOrigin+'/';
 const route=async path=>{await page.goto(base+'#/'+path);await page.locator('#main').waitFor();await page.waitForFunction(()=>document.querySelector('#app').dataset.authStatus!=='checking');};
 try{
   for(const id of ['mixed','percentages','full']){

@@ -1,3 +1,4 @@
+const testOrigin=(process.env.TEST_BASE_URL||'http://127.0.0.1:4173').replace(/\/$/,'');
 // Targeted shared-shell checks; no real Auth, Telegram, payment or content upload.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -6,12 +7,12 @@ const require=createRequire(import.meta.url),{chromium}=require(process.env.PLAY
 const browser=await chromium.launch({channel:'msedge',headless:true});
 const page=await browser.newPage(),checks=[],errors=[];
 page.on('pageerror',e=>errors.push(e.message));
-const go=async route=>{await page.goto('http://127.0.0.1:4173/#/'+route);await page.locator('.page-brand').waitFor();};
+const go=async route=>{await page.goto(testOrigin+'/#/'+route);await page.locator('.page-brand').waitFor();};
 try{
   const expectedTitle='Sahoo ExamNexa | Competitive Exam Preparation';
   const expectedDescription='Sahoo ExamNexa - Competitive Exam Preparation Platform for Odisha and All India Government Exams';
-  assert.deepEqual(fs.readdirSync('.').filter(f=>/\.html$/i.test(f)),['index.html']);
-  for(const url of ['http://127.0.0.1:4173/','http://127.0.0.1:4173/index.html','http://127.0.0.1:4173/#/home']){
+  assert.deepEqual(fs.readdirSync('.').filter(f=>/index\.html$/i.test(f)),['index.html']);
+  for(const url of [testOrigin+'/',testOrigin+'/index.html',testOrigin+'/#/home']){
     const response=await page.goto(url);const html=await response.text();
     assert.ok(html.includes('<title>'+expectedTitle+'</title>'));
     assert.ok(html.includes('content="'+expectedDescription+'"'));
@@ -59,7 +60,7 @@ try{
   assert.equal(await page.locator('.footer-links a[href="#/help"]').count(),1);
   checks.push('Footer navigation contains one link per destination, including Help & support');
   await page.setViewportSize({width:1440,height:1000});await go('home');await page.screenshot({path:'test-artifacts/launch-desktop-home.png',fullPage:true});
-  for(const route of ['/.env','/private-audits/solar-system-332/working/student-data.json','/supabase/migrations/202610020001_launch.sql','/1%20%20%20%20index.html'])assert.equal((await page.request.get('http://127.0.0.1:4173'+route)).status(),404);
+  for(const route of ['/.env','/private-audits/solar-system-332/working/student-data.json','/supabase/migrations/202610020001_launch.sql','/1%20%20%20%20index.html'])assert.equal((await page.request.get(testOrigin+route)).status(),404);
   checks.push('Private source/config/migration files remain outside public serving allowlist');
   assert.deepEqual(errors,[]);const report={passed:checks.length,checks,errors};fs.writeFileSync('test-artifacts/launch-branding-results.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 }finally{await browser.close();}

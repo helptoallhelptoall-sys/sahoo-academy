@@ -49,3 +49,6 @@
 .page-brand img{width:100px;height:auto;object-fit:contain}
 .live-test-brand img{width:64px;height:auto}
 @media(max-width:700px){.mobile-brand img{width:72px;height:auto;object-fit:contain}.page-brand{gap:8px}.page-brand img{width:88px}.live-test-brand img{width:64px}}
+
+/* Dedicated Auth callback: hidden controls must override button display styles. */
+.recovery-page [hidden]{display:none!important}

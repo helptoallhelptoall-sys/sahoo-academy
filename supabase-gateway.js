@@ -17,6 +17,7 @@ export function createSupabaseGateway(client,config){
   return {connected:true,realBackend:true,call,getSession,
     async register({displayName,email,password}){const {data,error}=await client.auth.signUp({email,password,options:{data:{displayName},emailRedirectTo:siteBase().href}});if(error)throw error;return data.session?getSession():{status:'email_confirmation_required'};},
     async login({email,password}){const {error}=await client.auth.signInWithPassword({email,password});if(error)throw error;return getSession();},
+    async requestPasswordReset(email){const {error}=await client.auth.resetPasswordForEmail(email,{redirectTo:new URL("reset-password.html",siteBase()).href});if(error)throw error;},
     async logout(){const {error}=await client.auth.signOut({scope:'global'});if(error)throw error;},
     getMyAccount:()=>call('account'),getLaunchPolicy:()=>call('policy'),beginSocialLink:()=>call('beginSocialLink'),verifyFreeAccess:testId=>call('verify',{testId}),startAttempt:payload=>call('start',payload),getSubjectAccess:subjectId=>call('access',{subjectId}),
     saveAttempt:payload=>call('saveAttempt',payload),submitAttempt:payload=>call('submitAttempt',payload),

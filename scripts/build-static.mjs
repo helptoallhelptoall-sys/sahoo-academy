@@ -30,6 +30,8 @@ export async function buildStatic(env=process.env) {
   let html=(await readFile(resolve(root,'index.html'),'utf8')).replace('<base href="/">',`<base href="${site.pathname}">`).replace('<meta name="robots" content="noindex, nofollow">','<meta name="robots" content="index, follow">');
   html=html.replace('<base ',`<meta http-equiv="Content-Security-Policy" content="${csp}">\n  <meta name="referrer" content="no-referrer">\n  <base `);
   await writeFile(resolve(out,'index.html'),html);
+  const reset=(await readFile(resolve(root,'reset-password.html'),'utf8')).replace('<base href="/">',`<base href="${site.pathname}">`).replace('<base ',`<meta http-equiv="Content-Security-Policy" content="${csp}">\n  <base `);
+  await writeFile(resolve(out,'reset-password.html'),reset);
   await writeFile(resolve(out,'404.html'),html.replace('content="index, follow"','content="noindex, nofollow"'));
   await writeFile(resolve(out,'public-config.json'),JSON.stringify(config));
   await writeFile(resolve(out,'.nojekyll'),'');

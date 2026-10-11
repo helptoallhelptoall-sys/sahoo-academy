@@ -2,7 +2,7 @@
 
 Status checked on 5 October 2026: the **Sahoo ExamNexa** project (`dtacpfeemvmdzzgwqscj`) exists, the schema and `202610040001_safe_attempt_options.sql` security migration are applied, and `academy-api` is deployed. Both GitHub public configuration variables are set. Production-origin CORS and anonymous Admin denial have been verified. The website has **not** been deployed by this production-build task.
 
-The catalog is empty: zero questions and zero published tests. The read-only audit found **zero Admin profiles** and no configured UPI ID, payee name or QR URL. Telegram is currently required, but its bot secrets/channel settings are missing; `telegram-webhook` is intentionally not deployed. YouTube promotion links are also unset. SMTP is configured, but the Dashboard warns that its provider is intended for personal mail; real student delivery remains untested. Admin provisioning, payment setup and reviewed content must be completed before accepting money. The checklist below distinguishes existing-project steps from fresh-project instructions.
+Current content state (11 October 2026): the catalog contains the published 41-question FREE Solar System practice test, with a 41-minute timer and +1/0 scoring. One intended confirmed Admin was provisioned previously. Telegram is OFF for launch and paid sales remain disabled while UPI/payee/QR are unconfigured. This feature run does not change those records. The new Questions migration and permanent recovery callback are pending release steps described below; do not treat the locally tested features as already deployed.
 
 ## What is implemented
 
@@ -16,7 +16,7 @@ The catalog is empty: zero questions and zero published tests. The read-only aud
 
 ## 1. Create a Supabase Free project
 
-**Existing project: do not rerun these migrations.** Cloud function/schema inspection and post-security-migration checks were completed. This project has no `supabase_migrations.schema_migrations` history table, so a CLI history gap does not mean migrations are missing. Do not run `supabase db push` or create history records blindly. The following sequence is for a new empty project only.
+**Existing project: do not rerun the four baseline migrations listed below.** Cloud function/schema inspection and post-security-migration checks were completed. This project has no `supabase_migrations.schema_migrations` history table, so a CLI history gap does not mean migrations are missing. Do not run `supabase db push` or create history records blindly. The following sequence is for a new empty project only.
 
 1. Create a new project in your Supabase account; choose an appropriate nearby region and save its database password in your password manager. No paid Supabase feature is required by this code; monitor Free-tier database, Auth, storage and Edge usage in the dashboard.
 2. Keep the Data API enabled for `public`. Run `supabase/migrations/202610020001_launch.sql`, then `202610020002_rate_limits.sql`, then `202610020003_promotion_and_telegram_scope.sql`, then `202610040001_safe_attempt_options.sql`, once each, in order, using SQL Editor or your migration workflow. If earlier migrations were already applied, apply only the missing migration. The final security migration restricts pre-submission options to `id` and `text`, including existing attempt snapshots; it does not rewrite stored question/import data. These migrations create the schema and privileges; do not run them against an unrelated existing database. Do not disable RLS or add broad browser grants to make an error disappear.
@@ -36,7 +36,7 @@ The catalog is empty: zero questions and zero published tests. The read-only aud
    ```
 
    Never derive Admin from user-editable metadata or email text. Students cannot update the role through the API. There is no public create-Admin action.
-5. Password recovery is not exposed by this minimal UI yet; use Supabase's authorized user-management recovery flow for launch support. CAPTCHA is not wired in this run; do not turn on a required Auth CAPTCHA until its client token integration is added. Keep Auth rate limits enabled. Set a short reasonable JWT expiry and remember that SDK logout revokes refresh sessions; an already issued JWT can remain valid until its expiry.
+5. The permanent Forgot Password UI uses Supabase Auth recovery and `reset-password.html`; complete the callback setup below before launch. CAPTCHA is not wired in this run; do not turn on a required Auth CAPTCHA until its client token integration is added. Keep Auth rate limits enabled. Set a short reasonable JWT expiry and remember that SDK logout revokes refresh sessions; an already issued JWT can remain valid until its expiry.
 
 ## 3. Public configuration and build
 
@@ -109,3 +109,20 @@ References: [Telegram getChatMember](https://core.telegram.org/bots/api#getchatm
 - Admin lists are capped at 500 records for this MVP; pagination is intentionally deferred. Monitor database growth from immutable question snapshots/import originals. No analytics, AI, reviews, bulk import or coupons were added.
 
 Until the credentials, real-project checks, content/payment setup and authorized hosting step are complete, this is **not ready to accept real payments**.
+
+## Pending release: permanent recovery and manual Questions (11 October 2026)
+
+These feature changes are validated locally only. **Do not apply the migration or redeploy Edge Functions as part of the code-only test run.** Existing published content, Auth roles, Telegram OFF and disabled sales stay unchanged.
+
+After separate release approval:
+
+1. Inspect and apply only `supabase/migrations/202610110001_manual_questions.sql` to the verified project. It creates private RLS-protected `manual_test_reviews` and a service-only RPC wrapper. No existing question/import/attempt rows are migrated or rewritten. Do not rerun older migrations or use an unverified `db push`.
+2. Update only the existing `academy-api` function from this build so its action allowlist accepts Questions operations. Retain production-only `ALLOWED_ORIGINS`; do not enable localhost.
+3. Add the exact Auth redirect URL `https://helptoallhelptoall-sys.github.io/sahoo-academy/reset-password.html`. Keep the production Site URL and existing production confirmation redirect. No wildcard/local recovery callback is needed. The permanent page must be deployed before sending users recovery emails with this redirect.
+4. Merge/deploy the website only after approval, then perform one owner-controlled recovery/email check. The owner types passwords privately. Isolated tests verify the official SDK calls, but do not establish live email delivery or cloud callback configuration.
+
+Recovery uses `resetPasswordForEmail`, an isolated sessionStorage-backed implicit recovery session, server-verified `getUser`, and authenticated `updateUser({password})`. It never changes account roles or creates a user. Callback parameters are scrubbed; failed/expired links fail closed. After updating, global sign-out is requested and local recovery state is cleared. A server sign-out outage is reported honestly; already-issued access JWTs can remain valid until expiry. No service-role key is used in the browser.
+
+Private Admin → Questions is separate from HTML Imports. Choose an existing draft test to inherit its Subject/Topic/Exam placement. Save enforces four distinct non-empty options, one answer, an explanation and valid tags. Published tests are read-only. Manual tests require explicit content review of the current revision before Tests → Publish. Editing a structurally valid HTML draft preserves original HTML/canonical records/count and invalidates its content review; the HTML Imports review must reload the edited revision before approving. Invalid original imports remain in their existing offline correction workflow. No question deletion is offered. Private before/after changes are recorded in `admin_audit`; no canonical data enters the static artifact.
+
+Run `npm run test:backend`, `npm run test:backend-browser`, `npm run test:recovery` and `npm run test:pages`. Browser scripts support `TEST_BASE_URL`; recovery and static artifact tests default to `http://127.0.0.1:4174/sahoo-academy/`. Use isolated Auth responses only until the permanent production page is live. Disposable fixtures are destroyed when the in-memory PostgreSQL database closes.
