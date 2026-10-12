@@ -1,0 +1,8 @@
+project_id = "sahoo-examnexa"
+
+# Function code validates the JWT via Auth getUser. The public webhook validates
+# Telegram's secret header; it must never rely on a caller-supplied user ID.
+[functions.academy-api]
+verify_jwt = false
+[functions.telegram-webhook]
+verify_jwt = false
