@@ -57,7 +57,7 @@ export function makeHandler({rpc,getUser,config,inspectHtml,fetcher=fetch}){
       }
       if(action==='adminImportHtml'){
         if(typeof payload.html!=='string'||!Number.isInteger(payload.expectedCount)||payload.expectedCount<1)return reply(400,{error:'HTML and exact expected question count required'});
-        let imported;try{imported=inspectHtml(payload.html,payload.expectedCount);}catch{return reply(400,{error:'Unsupported HTML or count discrepancy. Nothing imported; use the existing offline adapter to inspect the source.'});}
+        let imported;try{imported=inspectHtml(payload.html,payload.expectedCount);}catch{return reply(400,{error:'Invalid static question array or canonical HTML. Check the exact count, unique IDs, four options, zero-based correct index, chapter and explanation. Dynamic data is unsupported. Nothing imported.'});}
         if(imported.audit.importedQuestions!==payload.expectedCount||!imported.audit.countMatch)return reply(400,{error:'Count mismatch. Nothing added or removed; nothing imported.'});
         return reply(200,await rpc(actor,'adminImport',{testId:payload.testId,html:payload.html,import:imported}));
       }
