@@ -55,7 +55,7 @@ try{
   })();
   await check('sample test answers, navigation, clear, flag, cancel submission, scoring and review',async()=>{
     fixtureMode=true;
-    await route('test/mixed');await page.getByRole('button',{name:'Start Free Mock'}).click();await page.locator('input[value="2"]').check();await page.getByRole('button',{name:'Clear Response',exact:true}).click();assert.equal(await page.locator('#answered-count').textContent(),'0');await page.locator('input[value="2"]').check();await page.getByRole('button',{name:'Mark for Review',exact:true}).click();assert.equal(await page.locator('[data-action="flag-answer"]').getAttribute('aria-pressed'),'true');await page.locator('.question-grid [data-question="1"]').click();await page.locator('input[value="0"]').check();await page.locator('.question-grid [data-question="0"]').click();assert.ok(await page.locator('input[value="2"]').isChecked());await page.getByRole('button',{name:'Finish & review'}).click();await page.getByRole('button',{name:'Keep practising'}).click();assert.equal(await page.locator('dialog').evaluate(e=>e.open),false);await page.getByRole('button',{name:'Finish & review'}).click();await page.getByRole('button',{name:'Submit sample'}).click();await page.waitForURL('**/#/results');assert.equal(await page.locator('.score-ring b').textContent(),'1/6');assert.ok(await page.getByText('50%',{exact:true}).count());assert.equal(await page.locator('.review-item').count(),6);await page.locator('a[href="#/dashboard"]').first().click();assert.equal(await page.locator('.data-table tbody tr').count(),1);await page.getByRole('button',{name:'Review',exact:true}).click();await page.waitForURL('**/#/results');
+    await route('test/mixed');await page.getByRole('button',{name:'Start Free Mock'}).click();await page.locator('input[value="2"]').check();await page.getByRole('button',{name:'Clear Response',exact:true}).click();assert.equal(await page.locator('#answered-count').textContent(),'0');await page.locator('input[value="2"]').check();await page.getByRole('button',{name:'Mark for Review',exact:true}).click();assert.equal(await page.locator('[data-action="flag-answer"]').getAttribute('aria-pressed'),'true');await page.locator('.question-grid [data-question="1"]').click();await page.locator('input[value="0"]').check();await page.locator('.question-grid [data-question="0"]').click();assert.ok(await page.locator('input[value="2"]').isChecked());await page.getByRole('button',{name:'Finish & review'}).click();await page.getByRole('button',{name:'Keep practising'}).click();assert.equal(await page.locator('dialog').evaluate(e=>e.open),false);await page.getByRole('button',{name:'Finish & review'}).click();await page.getByRole('button',{name:'Submit sample'}).click();await page.waitForURL('**/#/results');await page.locator('.review-item').first().waitFor();assert.equal(await page.locator('.score-ring b').textContent(),'1/6');assert.ok(await page.getByText('50%',{exact:true}).count());assert.equal(await page.locator('.review-item').count(),6);await page.locator('a[href="#/dashboard"]').first().click();await page.locator('.data-table tbody tr').first().waitFor();assert.equal(await page.locator('.data-table tbody tr').count(),1);await page.getByRole('button',{name:'Review',exact:true}).click();await page.waitForURL('**/#/results');await page.locator('.review-item').first().waitFor();
     fixtureMode=false;
   })();
   await check('diagonal live watermark stays behind usable CBT controls at desktop and 320px',async()=>{
@@ -93,7 +93,7 @@ try{
       assert.match(await page.locator('#timer').innerText(),/\d+:\d{2}/);
       await card.screenshot({path:`test-artifacts/watermark-${width}.png`});
       await page.getByRole('button',{name:'Finish & review'}).click();await page.getByRole('button',{name:'Submit sample'}).click();
-      await page.waitForURL('**/#/results');assert.equal(await page.locator('.review-item').count(),6);
+      await page.waitForURL('**/#/results');await page.locator('.review-item').first().waitFor();assert.equal(await page.locator('.review-item').count(),6);
       assert.equal(await page.locator('.live-question').count(),0);
       assert.match(await page.title(),/Sahoo ExamNexa/);
       assert.doesNotMatch(await page.locator('body').innerText(),/Sahoo Academy/i);
@@ -103,7 +103,7 @@ try{
   })();
   await check('timer expiry automatically submits unanswered test',async()=>{
     fixtureMode=true;
-    await route('test/percentages');await page.clock.install();await page.getByRole('button',{name:'Start Free Mock'}).click();await page.clock.fastForward(181000);await page.waitForURL('**/#/results');assert.equal(await page.locator('.score-ring b').textContent(),'0/2');assert.ok(await page.getByText('Time ran out and your test was automatically submitted.').count());await page.clock.resume();
+    await route('test/percentages');await page.clock.install();await page.getByRole('button',{name:'Start Free Mock'}).click();await page.clock.fastForward(181000);await page.waitForURL('**/#/results');await page.locator('.review-item').first().waitFor();assert.equal(await page.locator('.score-ring b').textContent(),'0/2');assert.ok(await page.getByText('Time ran out and your test was automatically submitted.').count());await page.clock.resume();
     fixtureMode=false;
   })();
   await check('leaving active test asks confirmation and discards only on approval',async()=>{
@@ -122,7 +122,7 @@ try{
   })();
   await check('phone test runner and results have no horizontal overflow',async()=>{
     fixtureMode=true;
-    await route('test/mixed');await page.getByRole('button',{name:'Start Free Mock'}).click();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:'test-artifacts/test-mobile.png',fullPage:true});await page.getByRole('button',{name:'Finish & review'}).click();await page.getByRole('button',{name:'Submit sample'}).click();await page.waitForURL('**/#/results');assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+    await route('test/mixed');await page.getByRole('button',{name:'Start Free Mock'}).click();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:'test-artifacts/test-mobile.png',fullPage:true});await page.getByRole('button',{name:'Finish & review'}).click();await page.getByRole('button',{name:'Submit sample'}).click();await page.waitForURL('**/#/results');await page.locator('.review-item').first().waitFor();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
     fixtureMode=false;
   })();
   await check('paid catalog shows subject prices, lock status and no playable premium data',async()=>{

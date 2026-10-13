@@ -5,7 +5,7 @@ import {PGlite} from '@electric-sql/pglite';
 import {makeHandler} from '../supabase/functions/_shared/handler.mjs';
 import {inspectUploadedHtml} from '../scripts/upload-import.mjs';
 const admin='10000000-0000-4000-8000-000000000003',student='10000000-0000-4000-8000-000000000001';
-const records=Array.from({length:2},(_,i)=>({id:i+10,chapter:'ଓଡ଼ିଆ',question_statement:'Synthetic '+i+' 🟢',options:['A','B','C','D'],correct:i,explanation:'Private explanation '+i,tags:['Unverified 😀'],metadata:{answer:'private'}}));
+const records=Array.from({length:2},(_,i)=>({id:i+10,chapter:'ଓଡ଼ିଆ',question_statement:'Synthetic '+i+' 🟢',options:['A','B','C','D'],correct:i,explanation:'Private explanation '+i,tags:['MCQ PDF','🟢','History'],...(i===0?{pyp:{examId:'odisha-police-si',year:2023,label:'Odisha Police SI 2023'}}:{}),metadata:{answer:'private'}}));
 const html='<script>const questions='+JSON.stringify(records)+';function ui(){return questions;}</script>';
 test('browser upload transport + isolated database: authentication, exact counts, review and answer privacy',async t=>{
  const db=new PGlite();try{
@@ -27,7 +27,7 @@ test('browser upload transport + isolated database: authentication, exact counts
  });
  await t.test('valid source upload preserves all fields and remains draft with Pass 2 pending',async()=>{
   assert.equal((await upload()).status,200);const imp=(await db.query('select * from public.imports')).rows[0];assert.equal(imp.source_html,html);assert.equal(imp.pass1,true);assert.equal(imp.pass2,false);
-  for(let i=0;i<2;i++){assert.deepEqual(imp.original[i].metadata.sourceRecord,records[i]);assert.deepEqual(imp.working[i].options.map(o=>o.text),records[i].options);assert.equal(imp.working[i].correctOptionId,'option-'+i);assert.equal(imp.working[i].explanation,records[i].explanation);assert.deepEqual(imp.working[i].tags,records[i].tags);}
+  for(let i=0;i<2;i++){assert.deepEqual(imp.original[i].metadata.sourceRecord,records[i]);assert.deepEqual(imp.working[i].options.map(o=>o.text),records[i].options);assert.equal(imp.working[i].correctOptionId,'option-'+i);assert.equal(imp.working[i].explanation,records[i].explanation);assert.deepEqual(imp.working[i].tags,i===0?[records[i].pyp.label]:[]);}
   await assert.rejects(save('tests',{...draft,published:true}));const before=await fingerprint();assert.equal((await upload()).status,400);assert.equal(await fingerprint(),before);
  });
  await t.test('both passes required; published destination and original are protected; answers withheld until submission',async()=>{

@@ -7,7 +7,7 @@ export const sourceHtml=(records=[record()],after='')=>'<html><script>const them
 const inspect=html=>inspectSourceArrayHtml(html,{expectedCount:1});
 test('static array with surrounding UI code preserves every source field and ignores quiz-time shuffling',()=>{
  const q=record(),r=inspect(sourceHtml([q],'function shuffle(){ questions.reverse(); questions[0].correct=3; } document.addEventListener("click",shuffle); throw Error("Never executed");'));
- assert.deepEqual(r.sourceRecords,[q]);assert.deepEqual(r.original[0].metadata.sourceRecord,q);assert.equal(r.imported[0].text,q.question_statement.replaceAll('🟢',''));assert.deepEqual(r.imported[0].options,q.options.map((text,i)=>({id:'option-'+i,text})));assert.equal(r.imported[0].correctOptionId,'option-1');assert.equal(r.imported[0].explanation,q.explanation);assert.deepEqual(r.imported[0].tags,q.tags);assert.equal(r.pass2,'pending');assert.equal(r.publishable,false);
+ assert.deepEqual(r.sourceRecords,[q]);assert.deepEqual(r.original[0].metadata.sourceRecord,q);assert.equal(r.imported[0].text,q.question_statement.replaceAll('🟢',''));assert.deepEqual(r.imported[0].options,q.options.map((text,i)=>({id:'option-'+i,text})));assert.equal(r.imported[0].correctOptionId,'option-1');assert.equal(r.imported[0].explanation,q.explanation);assert.deepEqual(r.imported[0].tags,[]);assert.equal(r.pass2,'pending');assert.equal(r.publishable,false);
 });
 test('quoted strings, comments, escapes, Unicode and trailing commas are literal data',()=>{
  const r=inspect(`<script>/* const questions = [bad]; */ const label='const questions = [fake]'; const questions=[{id:'one',chapter:'ଓଡ଼ିଆ',question_statement:'It\\'s \\u0041 😀',options:['A','B','C','D',],correct:0,explanation:'Keep \\n newline',},]; function ui(){return questions;}</script>`);
@@ -21,7 +21,7 @@ test('reject truncated arrays, malformed scripts, nested and ambiguous declarati
  for(const html of [sourceHtml().replace('];',';'),sourceHtml().replace('</script>',''),sourceHtml()+sourceHtml(),'<script>function f(){const questions=[]}</script>','<script>let questions=[];</script>','<script>window.questions=[];</script>'])assert.throws(()=>inspect(html));
 });
 test('reject unsafe structural records without dropping or inventing any',()=>{
- for(const patch of [{id:null},{id:undefined},{chapter:''},{question_statement:''},{options:['a','b','c']},{options:['a','b','c','d','e']},{options:['a','b','c',null]},{correct:-1},{correct:4},{correct:1.5},{correct:'1'},{explanation:''},{tags:'tag'}])assert.throws(()=>inspect(sourceHtml([{...record(),...patch}])));
+ for(const patch of [{id:null},{id:undefined},{chapter:''},{question_statement:''},{options:['a','b','c']},{options:['a','b','c','d','e']},{options:['a','b','c',null]},{correct:-1},{correct:4},{correct:1.5},{correct:'1'},{explanation:''}])assert.throws(()=>inspect(sourceHtml([{...record(),...patch}])));
  assert.throws(()=>inspectSourceArrayHtml(sourceHtml([record(),record()]),{expectedCount:2}));
  assert.throws(()=>inspectSourceArrayHtml(sourceHtml([record(),record('1')]),{expectedCount:2}));
  assert.throws(()=>inspectSourceArrayHtml(sourceHtml(),{expectedCount:165}));
@@ -39,4 +39,32 @@ test('Edge entry compiles and Deno resolves the same pinned parser dependency',a
  const pkg=JSON.parse(await fs.readFile(new URL('../package.json',import.meta.url),'utf8'));
  assert.equal(map.imports.acorn,'npm:acorn@'+pkg.dependencies.acorn);
  const result=await build({entryPoints:['supabase/functions/academy-api/index.ts'],bundle:true,write:false,platform:'node',format:'esm',external:['npm:*']});assert.equal(result.outputFiles.length,1);
+});
+
+// Strict source-array PYP policy; canonical imports have a separate contract.
+test('explicit reviewed PYP metadata preserves the exact original exam/year label',()=>{
+ for(const pyp of [{examId:'odisha-police-si',year:2023,label:'Odisha Police SI 2023'},{examId:'odisha-police-constable',year:2022,label:'Odisha Police Constable 2022'}]){
+  const r=inspect(sourceHtml([{...record(),pyp}]));assert.deepEqual(r.imported[0].tags,[pyp.label]);assert.deepEqual(r.original[0].tags,[pyp.label]);assert.deepEqual(r.studentRecords[0].tags,[pyp.label]);
+ }
+});
+test('absent PYP metadata always produces an empty actual tag field',()=>{
+ const q=record();delete q.tags;const r=inspect(sourceHtml([q]));assert.deepEqual(r.imported[0].tags,[]);assert.deepEqual(r.studentRecords[0].tags,[]);
+});
+test('generic tags, filenames, chapters and custom labels are never copied',()=>{
+ const tags=['MCQ PDF','Notes PDF','PDF','HTML','Source','Custom','chapter.html','Computer Bank','Intro','History','Generations','Theory Notes','Practice','Computer / ଓଡ଼ିଆ'];
+ for(const sourceTags of [tags,'MCQ PDF',[{label:'Odisha Police SI 2023'}]]){const q={...record(),tags:sourceTags};const r=inspect(sourceHtml([q]));assert.deepEqual(r.imported[0].tags,[]);assert.deepEqual(r.studentRecords[0].tags,[]);assert.deepEqual(r.imported[0].metadata.sourceRecord,q);}
+});
+test('green emoji is never a tag, including mixed explicit PYP records',()=>{
+ for(const pyp of [undefined,{examId:'odisha-police-si',year:2023,label:'Odisha Police SI 2023'}]){const q={...record(),tags:['🟢'],...(pyp?{pyp}:{})};const r=inspect(sourceHtml([q]));assert.deepEqual(r.imported[0].tags,pyp?[pyp.label]:[]);assert.equal(r.imported[0].metadata.sourceRecord.tags[0],'🟢');}
+});
+test('PYP is never inferred even from exam-looking arbitrary tags or surrounding content',()=>{
+ const q={...record(),chapter:'Odisha Police SI 2023',question_statement:'Odisha Police SI 2023 🟢',explanation:'Odisha Police SI 2023',tags:['Odisha Police SI 2023'],filename:'Odisha Police SI 2023.html',source:'Odisha Police SI 2023',pypTags:['Odisha Police SI 2023']};
+ const r=inspect('<h1>Odisha Police SI 2023</h1>'+sourceHtml([q]));assert.deepEqual(r.imported[0].tags,[]);assert.deepEqual(r.imported[0].metadata.sourceRecord,q);
+});
+test('raw source metadata remains intact privately while actual tags are restricted',()=>{
+ const q={...record(),pyp:{examId:'odisha-police-si',year:2023,label:'Odisha Police SI 2023'},tags:['MCQ PDF','🟢','Custom'],source:{keep:'History'}};
+ const r=inspect(sourceHtml([q]));assert.deepEqual(r.sourceRecords,[q]);assert.deepEqual(r.original[0].metadata.sourceRecord,q);assert.deepEqual(r.imported[0].metadata.sourceRecord,q);assert.deepEqual(r.imported[0].tags,[q.pyp.label]);
+});
+test('unsupported or malformed PYP metadata fails closed, never promotes arbitrary labels',()=>{
+ for(const pyp of ['Odisha Police SI 2023',['Odisha Police SI 2023'],{label:'Odisha Police SI 2023'},{examId:'unknown',year:2023,label:'Unknown 2023'},{examId:'__proto__',year:2023,label:'Fake 2023'},{examId:'odisha-police-si',year:'2023',label:'Odisha Police SI 2023'},{examId:'odisha-police-si',year:2023,label:'MCQ PDF'},{examId:'odisha-police-si',year:2023,label:'Odisha Police SI 2022'}])assert.deepEqual(inspect(sourceHtml([{...record(),pyp}])).imported[0].tags,[]);
 });

@@ -78,6 +78,21 @@ function extractArray(html){
   }
   return {data:literal(bank.node.init),start:bank.start+bank.node.init.start,end:bank.start+bank.node.init.end};
 }
+// Fail closed: these are the reviewed source metadata identifiers, not inferred
+// labels. Add other exam identities only with an explicit format review. This
+// mapping validates source representation, not authenticity (Pass 2 still does).
+const PYP_EXAMS=Object.freeze({
+  'odisha-police-si':'Odisha Police SI',
+  'odisha-police-constable':'Odisha Police Constable'
+});
+function sourcePypTags(record){
+  const pyp=record.pyp;
+  if(!pyp||Array.isArray(pyp)||typeof pyp!=='object')return [];
+  if(typeof pyp.examId!=='string'||!Object.hasOwn(PYP_EXAMS,pyp.examId))return [];
+  if(!Number.isInteger(pyp.year)||pyp.year<1900||pyp.year>2099)return [];
+  const expected=PYP_EXAMS[pyp.examId]+' '+pyp.year;
+  return pyp.label===expected?[pyp.label]:[];
+}
 export function inspectSourceArrayHtml(html,{expectedCount}={}){
   if(typeof html!=='string'||Buffer.byteLength(html)>10*1024*1024)throw new Error('Source must be UTF-8 HTML within 10 MB.');
   const {data,start,end}=extractArray(html),records=JSON.parse(JSON.stringify(data));
@@ -89,7 +104,7 @@ export function inspectSourceArrayHtml(html,{expectedCount}={}){
     options:q.options.map((text,j)=>({id:`option-${j}`,text})),
     correctOptionId:Number.isInteger(q.correct)?`option-${q.correct}`:null,
     explanation:q.explanation,topic:q.chapter,
-    tags:q.tags===undefined?[]:q.tags,
+    tags:sourcePypTags(q),
     metadata:{sourceIndex:i,sourceId:q.id,sourceRecord:q}
   }));
   const declaredCount=expectedCount??records.length;
@@ -98,5 +113,5 @@ export function inspectSourceArrayHtml(html,{expectedCount}={}){
   // finding rather than being silently removed. All custom/source fields stay private.
   const invalid=result.issues.filter(i=>i.field!=='duplicate');
   if(invalid.length)throw new Error(invalid.map(i=>`Record ${i.number??'count'}: ${i.field}`).join('; '));
-  return {...result,sourceRecords:records,studentRecords:records.map(q=>({...q,question_statement:q.question_statement.replaceAll('🟢','')})),sourceSha256:createHash('sha256').update(html).digest('hex'),arraySource:html.slice(start,end),format:'const-questions-data-v1',sourceLineStart:html.slice(0,start).split('\n').length};
+  return {...result,sourceRecords:records,studentRecords:records.map(q=>({...q,tags:sourcePypTags(q),question_statement:q.question_statement.replaceAll('🟢','')})),sourceSha256:createHash('sha256').update(html).digest('hex'),arraySource:html.slice(start,end),format:'const-questions-data-v1',sourceLineStart:html.slice(0,start).split('\n').length};
 }

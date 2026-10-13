@@ -61,7 +61,7 @@ test('green emoji removal changes only that character and preserves tags and met
 test('source array adapter preserves every source field and zero-based answer mapping',()=>{
   const record={id:1,chapter:'Example topic',question_statement:'Example 🟢 question',options:['A 🟢','B','C','D'],correct:1,explanation:'Explanation 🟢',tags:['PYP tag'],custom:{value:'Keep this'}};
   const html='<script>const questions = ['+JSON.stringify(record)+'];</script>';
-  const result=inspectSourceArrayHtml(html,{expectedCount:1});assert.equal(result.audit.countMatch,true);assert.equal(result.audit.greenEmojiRemoved,1);assert.deepEqual(result.studentRecords[0],{...record,question_statement:'Example  question'});assert.equal(result.imported[0].correctOptionId,'option-1');assert.deepEqual(result.imported[0].metadata.sourceRecord,record);assert.deepEqual(result.imported[0].tags,record.tags);
+  const result=inspectSourceArrayHtml(html,{expectedCount:1});assert.equal(result.audit.countMatch,true);assert.equal(result.audit.greenEmojiRemoved,1);assert.deepEqual(result.studentRecords[0],{...record,tags:[],question_statement:'Example  question'});assert.equal(result.imported[0].correctOptionId,'option-1');assert.deepEqual(result.imported[0].metadata.sourceRecord,record);assert.deepEqual(result.imported[0].tags,[]);
 });
 test('data literal parser rejects executable expressions, duplicate keys and unsafe keys',()=>{
   for(const input of ['[{id: run()}]','[{id:1,id:2}]','[{__proto__:1}]','[{value:()=>1}]','[{value:window.secret}]'])assert.throws(()=>parseDataLiteral(input));
