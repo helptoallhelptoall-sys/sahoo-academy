@@ -1,50 +1,102 @@
-// NON-PUBLIC source-specific adapter for HTML containing `const questions = [...]`.
-// Only a restricted data-literal grammar is read. No eval, VM, DOM or source execution.
+// Private static-data adapter shared by the Admin Edge upload and offline verification.
+// Acorn builds syntax trees only. Uploaded scripts/HTML are never executed or rendered.
+import {parse,parseExpressionAt} from 'acorn';
 import {createHash} from 'node:crypto';
 import {prepareImport} from '../import-core.js';
 
-export function parseDataLiteral(source,start=0){
-  let position=start;
-  const whitespace=()=>{while(/\s/.test(source[position]||'')&&position<source.length)position++;};
-  const fail=message=>{throw new Error(`${message} at source offset ${position}. Nothing is executed.`);};
-  function string(){
-    const begin=position++;
-    while(position<source.length){const char=source[position++];if(char==='\\'){position++;continue;}if(char==='"'){try{return JSON.parse(source.slice(begin,position));}catch{fail('Invalid quoted string');}}}
-    fail('Unterminated string');
+function literal(node,depth=0){
+  if(!node||depth>64)throw new Error('Missing, sparse or excessively nested data literal.');
+  if(node.type==='Literal'&&!node.regex&&!node.bigint){
+    if(node.value===null||typeof node.value==='string'||typeof node.value==='boolean'||(typeof node.value==='number'&&Number.isFinite(node.value)))return node.value;
   }
-  function value(){
-    whitespace();const char=source[position];
-    if(char==='"')return string();
-    if(char==='['){position++;const result=[];whitespace();if(source[position]===']'){position++;return result;}while(true){result.push(value());whitespace();if(source[position]===']'){position++;return result;}if(source[position++]!==',')fail('Expected array delimiter');whitespace();if(source[position]===']'){position++;return result;}}}
-    if(char==='{'){position++;const result=Object.create(null);whitespace();if(source[position]==='}'){position++;return result;}while(true){whitespace();let key;if(source[position]==='"')key=string();else{const found=source.slice(position).match(/^[A-Za-z_$][\w$]*/);if(!found)fail('Invalid object key');key=found[0];position+=key.length;}if(Object.hasOwn(result,key))fail('Duplicate object key');if(['__proto__','prototype','constructor'].includes(key))fail('Unsafe object key');whitespace();if(source[position++]!==':')fail('Expected colon');result[key]=value();whitespace();if(source[position]==='}'){position++;return result;}if(source[position++]!==',')fail('Expected object delimiter');whitespace();if(source[position]==='}'){position++;return result;}}}
-    const literal=source.slice(position).match(/^(?:-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=[\s,\]}])/);
-    if(literal){position+=literal[0].length;return JSON.parse(literal[0]);}
-    fail('Only plain data literals are supported');
+  if(node.type==='UnaryExpression'&&node.operator==='-'&&node.argument.type==='Literal'&&typeof node.argument.value==='number'&&Number.isFinite(node.argument.value))return -node.argument.value;
+  if(node.type==='ArrayExpression')return node.elements.map(n=>literal(n,depth+1));
+  if(node.type==='ObjectExpression'){
+    const result=Object.create(null);
+    for(const p of node.properties){
+      if(p.type!=='Property'||p.kind!=='init'||p.method||p.computed||p.shorthand)throw new Error('Only plain static object properties are supported.');
+      const key=p.key.type==='Identifier'?p.key.name:p.key.type==='Literal'&&typeof p.key.value==='string'?p.key.value:null;
+      if(key===null||['__proto__','prototype','constructor'].includes(key)||Object.hasOwn(result,key))throw new Error('Unsafe or duplicate object key.');
+      result[key]=literal(p.value,depth+1);
+    }
+    return result;
   }
-  const data=value();return {data,end:position};
+  throw new Error('Only plain data literals are supported. Nothing is executed.');
 }
-
+export function parseDataLiteral(source,start=0){
+  const node=parseExpressionAt(source,start,{ecmaVersion:2022});
+  return {data:literal(node),end:node.end};
+}
+function children(node){return Object.values(node).flatMap(v=>Array.isArray(v)?v.filter(n=>n?.type):v?.type?[v]:[]);}
+function extractArray(html){
+  const declarations=[],programs=[];
+  // Consume comments as whole tokens so a commented-out example is not a bank.
+  const tags=/<!--[\s\S]*?-->|<script\b([^>]*?)>/gi;
+  let match;
+  while((match=tags.exec(html))){
+    if(match[0].startsWith('<!--'))continue;
+    const start=tags.lastIndex,close=/<\/script\s*>/gi;close.lastIndex=start;
+    const end=close.exec(html);if(!end)throw new Error('Unterminated script block.');
+    tags.lastIndex=close.lastIndex;
+    const attrs=match[1];
+    // External scripts are never downloaded. Non-JavaScript data is not executable source.
+    if(/\bsrc\s*=/i.test(attrs)||/\btype\s*=\s*["']?application\/json/i.test(attrs))continue;
+    const script=html.slice(start,end.index),program=parse(script,{ecmaVersion:2022});
+    programs.push(program);
+    const topLevel=new Set(program.body.filter(n=>n.type==='VariableDeclaration'&&n.kind==='const').flatMap(n=>n.declarations));
+    const pending=[program];
+    while(pending.length){
+      const node=pending.pop();
+      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.id.name==='questions'){
+        if(!topLevel.has(node)||node.init?.type!=='ArrayExpression')throw new Error('Use one top-level const questions = static array; dynamic construction is unsupported.');
+        declarations.push({node,start});
+      }
+      pending.push(...children(node));
+    }
+  }
+  if(declarations.length!==1)throw new Error('Expected exactly one top-level const questions array.');
+  const bank=declarations[0];
+  // Do not import runtime changes. Direct top-level reads/aliases/writes of the bank
+  // are ambiguous and rejected. Quiz callbacks/functions are ignored in their entirety,
+  // including UI-only shuffling; the authoritative import is the literal snapshot.
+  const functions=new Map(programs.flatMap(p=>p.body.filter(n=>n.type==='FunctionDeclaration').map(n=>[n.id.name,n.body])));
+  const visited=new Set();
+  for(const program of programs){
+    const pending=[program];
+    while(pending.length){
+      const node=pending.pop();
+      if(visited.has(node))continue;visited.add(node);
+      if(node.type==='CallExpression'){
+        const callee=node.callee;
+        if(['FunctionExpression','ArrowFunctionExpression'].includes(callee.type))pending.push(callee.body);
+        if(callee.type==='Identifier'&&functions.has(callee.name))pending.push(functions.get(callee.name));
+      }
+      if(node===bank.node||['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type))continue;
+      if(node.type==='Identifier'&&node.name==='questions')throw new Error('Top-level dynamic question processing is unsupported; supply a complete static array.');
+      pending.push(...children(node));
+    }
+  }
+  return {data:literal(bank.node.init),start:bank.start+bank.node.init.start,end:bank.start+bank.node.init.end};
+}
 export function inspectSourceArrayHtml(html,{expectedCount}={}){
   if(typeof html!=='string'||Buffer.byteLength(html)>10*1024*1024)throw new Error('Source must be UTF-8 HTML within 10 MB.');
-  const matches=[...html.matchAll(/\bconst\s+questions\s*=\s*(?=\[)/g)];
-  if(matches.length!==1)throw new Error('Expected one unambiguous const questions array. Use a source-specific adapter.');
-  const start=matches[0].index+matches[0][0].length;
-  const {data:parsedRecords,end}=parseDataLiteral(html,start);
-  const records=JSON.parse(JSON.stringify(parsedRecords));
-  if(!Array.isArray(records))throw new Error('Question bank must be an array.');
-  if(!/^\s*;?\s*<\/script\s*>/i.test(html.slice(end)))throw new Error('Unexpected code after question data; manual adapter review required.');
+  const {data,start,end}=extractArray(html),records=JSON.parse(JSON.stringify(data));
   for(const [i,q] of records.entries()){
-    if(!q||typeof q!=='object'||typeof q.question_statement!=='string'||!Array.isArray(q.options))throw new Error(`Unsupported question structure at record ${i+1}; no records dropped.`);
+    if(!q||Array.isArray(q)||typeof q!=='object'||!(typeof q.id==='string'&&q.id.trim()||Number.isSafeInteger(q.id))||typeof q.question_statement!=='string'||!Array.isArray(q.options))throw new Error(`Invalid source structure/ID at record ${i+1}; no records dropped.`);
   }
   const canonical=records.map((q,i)=>({
-    id:String(q.id??`source-position-${i+1}`),number:i+1,text:q.question_statement,
+    id:String(q.id),number:i+1,text:q.question_statement,
     options:q.options.map((text,j)=>({id:`option-${j}`,text})),
     correctOptionId:Number.isInteger(q.correct)?`option-${q.correct}`:null,
     explanation:q.explanation,topic:q.chapter,
-    tags:Array.isArray(q.tags)?q.tags:[],
+    tags:q.tags===undefined?[]:q.tags,
     metadata:{sourceIndex:i,sourceId:q.id,sourceRecord:q}
   }));
-  const declaredCount=expectedCount??Number(html.match(/new\s+Array\((\d+)\)\.fill\(null\)/)?.[1]??records.length);
+  const declaredCount=expectedCount??records.length;
   const result=prepareImport({questionCount:declaredCount,questions:canonical,metadata:{format:'const-questions-data-v1'}});
+  // Reject malformed uploads atomically. Exact repeated content remains a review
+  // finding rather than being silently removed. All custom/source fields stay private.
+  const invalid=result.issues.filter(i=>i.field!=='duplicate');
+  if(invalid.length)throw new Error(invalid.map(i=>`Record ${i.number??'count'}: ${i.field}`).join('; '));
   return {...result,sourceRecords:records,studentRecords:records.map(q=>({...q,question_statement:q.question_statement.replaceAll('🟢','')})),sourceSha256:createHash('sha256').update(html).digest('hex'),arraySource:html.slice(start,end),format:'const-questions-data-v1',sourceLineStart:html.slice(0,start).split('\n').length};
 }
