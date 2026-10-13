@@ -57,8 +57,8 @@ test('generic tags, filenames, chapters and custom labels are never copied',()=>
 test('green emoji is never a tag, including mixed explicit PYP records',()=>{
  for(const pyp of [undefined,{examId:'odisha-police-si',year:2023,label:'Odisha Police SI 2023'}]){const q={...record(),tags:['🟢'],...(pyp?{pyp}:{})};const r=inspect(sourceHtml([q]));assert.deepEqual(r.imported[0].tags,pyp?[pyp.label]:[]);assert.equal(r.imported[0].metadata.sourceRecord.tags[0],'🟢');}
 });
-test('PYP is never inferred even from exam-looking arbitrary tags or surrounding content',()=>{
- const q={...record(),chapter:'Odisha Police SI 2023',question_statement:'Odisha Police SI 2023 🟢',explanation:'Odisha Police SI 2023',tags:['Odisha Police SI 2023'],filename:'Odisha Police SI 2023.html',source:'Odisha Police SI 2023',pypTags:['Odisha Police SI 2023']};
+test('PYP is never inferred from text, chapter, filename or surrounding content',()=>{
+ const q={...record(),chapter:'Odisha Police SI 2023',question_statement:'Odisha Police SI 2023 🟢',explanation:'Odisha Police SI 2023',tags:['MCQ PDF'],filename:'Odisha Police SI 2023.html',source:'Odisha Police SI 2023',pypTags:['Odisha Police SI 2023']};
  const r=inspect('<h1>Odisha Police SI 2023</h1>'+sourceHtml([q]));assert.deepEqual(r.imported[0].tags,[]);assert.deepEqual(r.imported[0].metadata.sourceRecord,q);
 });
 test('raw source metadata remains intact privately while actual tags are restricted',()=>{
@@ -67,4 +67,25 @@ test('raw source metadata remains intact privately while actual tags are restric
 });
 test('unsupported or malformed PYP metadata fails closed, never promotes arbitrary labels',()=>{
  for(const pyp of ['Odisha Police SI 2023',['Odisha Police SI 2023'],{label:'Odisha Police SI 2023'},{examId:'unknown',year:2023,label:'Unknown 2023'},{examId:'__proto__',year:2023,label:'Fake 2023'},{examId:'odisha-police-si',year:'2023',label:'Odisha Police SI 2023'},{examId:'odisha-police-si',year:2023,label:'MCQ PDF'},{examId:'odisha-police-si',year:2023,label:'Odisha Police SI 2022'}])assert.deepEqual(inspect(sourceHtml([{...record(),pyp}])).imported[0].tags,[]);
+});
+
+test('reviewed Odisha exam/year tags are preserved exactly from explicit arrays',()=>{
+ const names=['Odisha Police SI','Odisha Police Constable','OSSSC PEO','RI','OSSSC RI','ARI','OSSSC ARI','AMIN','OSSSC AMIN','Forest Guard','OSSSC Forest Guard','OPSC','OPSC OCS','OPSC ASO','OSSC','OSSC CGL','OSSC CHSL','OPRB','OPRB SI','OPRB Constable'];
+ for(const name of names){const label=name+' 2023',q={...record(),tags:[label]};const r=inspect(sourceHtml([q]));assert.deepEqual(r.imported[0].tags,[label]);assert.deepEqual(r.original[0].tags,[label]);assert.deepEqual(r.studentRecords[0].tags,[label]);assert.deepEqual(r.imported[0].metadata.sourceRecord,q);}
+});
+test('mixed explicit tags retain only approved PYP labels in source order',()=>{
+ const q={...record(),tags:['Odisha Police SI 2023','MCQ PDF','OSSSC PEO 2022','Notes PDF','History','🟢','Custom','OPSC 2021','chapter.html']};
+ const r=inspect(sourceHtml([q]));assert.deepEqual(r.imported[0].tags,['Odisha Police SI 2023','OSSSC PEO 2022','OPSC 2021']);assert.deepEqual(r.imported[0].metadata.sourceRecord,q);
+ assert.deepEqual(inspect(sourceHtml([{...record(),tags:['MCQ PDF','History']}])).imported[0].tags,[]);
+});
+test('random exam names, malformed labels and non-string tags fail closed',()=>{
+ const tags=['Random Exam 2023','OPSC Random 2023','History 2023','Odisha Police SI','Odisha Police SI 23','odisha police si 2023','Odisha Police SI 2023.html','Odisha Police SI 2023 Practice','Odisha Police SI 2023\n',' Odisha Police SI 2023','Odisha Police SI 2023 ','Odisha Police SI 1800','Odisha Police SI 2100',{},null,2023];
+ assert.deepEqual(inspect(sourceHtml([{...record(),tags}])).imported[0].tags,[]);
+});
+test('structured PYP supports the same reviewed families without inventing labels',()=>{
+ for(const [examId,name] of [['osssc-peo','OSSSC PEO'],['osssc-ri','OSSSC RI'],['osssc-ari','OSSSC ARI'],['osssc-amin','OSSSC AMIN'],['osssc-forest-guard','OSSSC Forest Guard'],['opsc','OPSC'],['ossc','OSSC'],['oprb','OPRB']]){
+  const pyp={examId,year:2022,label:name+' 2022'};assert.deepEqual(inspect(sourceHtml([{...record(),pyp}])).imported[0].tags,[pyp.label]);assert.deepEqual(inspect(sourceHtml([{...record(),pyp:{examId,year:2022}}])).imported[0].tags,[]);
+ }
+ const pyp={examId:'odisha-police-si',year:2023,label:'Odisha Police SI 2023'};
+ assert.deepEqual(inspect(sourceHtml([{...record(),pyp,tags:[pyp.label,'OPRB 2022','MCQ PDF']}])).imported[0].tags,[pyp.label,'OPRB 2022']);
 });

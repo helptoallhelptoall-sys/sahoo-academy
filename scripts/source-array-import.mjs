@@ -83,15 +83,31 @@ function extractArray(html){
 // mapping validates source representation, not authenticity (Pass 2 still does).
 const PYP_EXAMS=Object.freeze({
   'odisha-police-si':'Odisha Police SI',
-  'odisha-police-constable':'Odisha Police Constable'
+  'odisha-police-constable':'Odisha Police Constable',
+  'osssc-peo':'OSSSC PEO',
+  'ri':'RI', 'osssc-ri':'OSSSC RI',
+  'ari':'ARI', 'osssc-ari':'OSSSC ARI',
+  'amin':'AMIN', 'osssc-amin':'OSSSC AMIN',
+  'forest-guard':'Forest Guard', 'osssc-forest-guard':'OSSSC Forest Guard',
+  'opsc':'OPSC', 'opsc-ocs':'OPSC OCS', 'opsc-aso':'OPSC ASO',
+  'ossc':'OSSC', 'ossc-cgl':'OSSC CGL', 'ossc-chsl':'OSSC CHSL',
+  'oprb':'OPRB', 'oprb-si':'OPRB SI', 'oprb-constable':'OPRB Constable'
 });
+const PYP_NAMES=new Set(Object.values(PYP_EXAMS));
+function validPypLabel(label){
+  if(typeof label!=='string')return false;
+  // Match the entire original string: no trimming, guessing or suffix extraction.
+  const match=/^(.+) (19\d{2}|20\d{2})$/.exec(label);
+  return !!match&&match[0]===label&&PYP_NAMES.has(match[1]);
+}
 function sourcePypTags(record){
+  const tags=Array.isArray(record.tags)?record.tags.filter(validPypLabel):[];
   const pyp=record.pyp;
-  if(!pyp||Array.isArray(pyp)||typeof pyp!=='object')return [];
-  if(typeof pyp.examId!=='string'||!Object.hasOwn(PYP_EXAMS,pyp.examId))return [];
-  if(!Number.isInteger(pyp.year)||pyp.year<1900||pyp.year>2099)return [];
-  const expected=PYP_EXAMS[pyp.examId]+' '+pyp.year;
-  return pyp.label===expected?[pyp.label]:[];
+  if(pyp&&!Array.isArray(pyp)&&typeof pyp==='object'&&typeof pyp.examId==='string'&&Object.hasOwn(PYP_EXAMS,pyp.examId)&&Number.isInteger(pyp.year)){
+    const expected=PYP_EXAMS[pyp.examId]+' '+pyp.year;
+    if(pyp.label===expected&&validPypLabel(pyp.label)&&!tags.includes(pyp.label))tags.push(pyp.label);
+  }
+  return tags;
 }
 export function inspectSourceArrayHtml(html,{expectedCount}={}){
   if(typeof html!=='string'||Buffer.byteLength(html)>10*1024*1024)throw new Error('Source must be UTF-8 HTML within 10 MB.');
