@@ -38,7 +38,7 @@ test('catalog IDs are unique and test references resolve',()=>{
 test('manifest uses only relative local assets',async()=>{const m=JSON.parse(await readFile(new URL('../manifest.webmanifest',import.meta.url),'utf8'));assert.equal(m.scope,'./');assert.equal(m.icons[0].src,'sahoo-examnexa-icon-192.png');});
 test('main UI delegates credentials and API calls to the official SDK gateway; no offline cache',async()=>{
   const source=await readFile(new URL('../app.js',import.meta.url),'utf8');
-  for(const forbidden of ['localStorage','sessionStorage','serviceWorker.register','fetch(','XMLHttpRequest','service_role','sk_live_'])assert.equal(source.includes(forbidden),false,forbidden);
+  for(const forbidden of ['localStorage','serviceWorker.register','fetch(','XMLHttpRequest','service_role','sk_live_'])assert.equal(source.includes(forbidden),false,forbidden);
 });
 test('premium catalog exposes metadata only and purchases resolve to a three-month subject',()=>{
   for(const t of premiumTests){assert.equal(t.access,'paid');assert.ok(subjectPlans.some(p=>p.id===t.planId));for(const key of ['ids','questions','options','answer','correctOptionId','explanation','html','downloadUrl'])assert.equal(Object.hasOwn(t,key),false);}

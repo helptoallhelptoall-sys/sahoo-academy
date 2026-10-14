@@ -54,11 +54,11 @@ export function createLaunchAccess(gateway=launchGateway){
       if(!validEligibility(result,testId))throw new Error('Invalid eligibility response');
       state.eligibility=result;state.message=result.status==='eligible'?'Requirements verified. They will be checked again when you start.':'Complete the requirements shown below, then verify again.';return result;
     });},
-    start(testId){return operation(async ticket=>{
+    start(testId,idempotencyKey=globalThis.crypto.randomUUID()){return operation(async ticket=>{
       state.eligibility=null;if(!await sessionAndPolicy(ticket))return null;
       // This endpoint MUST independently recheck login, current policy, Telegram membership,
       // publication and any paid entitlement before creating EACH attempt.
-      const result=await gateway.startAttempt({testId,idempotencyKey:globalThis.crypto.randomUUID()});if(ticket!==generation)return null;
+      const result=await gateway.startAttempt({testId,idempotencyKey});if(ticket!==generation)return null;
       if(result?.status==='denied'){
         if(validEligibility(result.freeAccess,testId))state.eligibility=result.freeAccess;
         if(result.reason==='login_required'){state.status='anonymous';state.user=null;}

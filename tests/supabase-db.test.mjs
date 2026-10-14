@@ -46,10 +46,11 @@ test('PostgreSQL migration, RLS, authorized payments/imports/attempts',async t=>
         for(let retry=0;retry<2;retry++){
           const response=await rpc(student,'start',payload);
           assert.equal(response.status,'started');
-          assert.deepEqual(response.page.questions[0].options,q.options.map(({id,text})=>({id,text})));
+          assert.deepEqual([...response.page.questions[0].options].sort((a,b)=>a.id.localeCompare(b.id)),q.options.map(({id,text})=>({id,text})));
           assert.doesNotMatch(JSON.stringify(response),/isCorrect|answerKey|private-option-/);
           const snapshot=(await db.query('select snapshot from public.attempts where id=$1',[response.page.attemptId])).rows[0].snapshot;
-          assert.deepEqual(snapshot[0].options,q.options);
+          assert.deepEqual([...snapshot[0].options].sort((a,b)=>a.id.localeCompare(b.id)),q.options);
+          assert.deepEqual(response.page.questions[0].options,snapshot[0].options.map(({id,text})=>({id,text})));
           await assert.rejects(rpc(student,'result',{attemptId:response.page.attemptId}));
           assert.deepEqual(Object.keys(await rpc(student,'saveAttempt',{attemptId:response.page.attemptId,answers:{q1:'o1'}})).sort(),['deadline','saved']);
         }

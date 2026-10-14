@@ -36,8 +36,8 @@ test('browser upload transport + isolated database: authentication, exact counts
   await save('admin_settings',{telegram_required:false});
   const started=await rpc(student,'start',{testId:'draft',idempotencyKey:crypto.randomUUID()});assert.equal(started.status,'started');
   for(const q of started.page.questions){assert.deepEqual(q.options.map(o=>Object.keys(o).sort()),Array(4).fill(['id','text']));for(const key of ['correct','correctOptionId','explanation','metadata','sourceRecord'])assert.equal(Object.hasOwn(q,key),false);}
-  const answers=Object.fromEntries(started.page.questions.map((q,i)=>[q.id,'option-'+i]));
-  const submitted=await rpc(student,'submitAttempt',{attemptId:started.page.attemptId,answers});assert.equal(submitted.score,2);assert.deepEqual(submitted.review.map(q=>q.explanation),records.map(q=>q.explanation));
+  const answers=Object.fromEntries(imp.working.map(q=>[q.id,q.correctOptionId]));
+  const submitted=await rpc(student,'submitAttempt',{attemptId:started.page.attemptId,answers});assert.equal(submitted.score,2);assert.deepEqual(submitted.review.map(q=>q.explanation),started.page.questions.map(q=>imp.working.find(original=>original.id===q.id).explanation));
  });
  }finally{await db.close();}
 });
