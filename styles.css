@@ -52,3 +52,6 @@
 
 /* Dedicated Auth callback: hidden controls must override button display styles. */
 .recovery-page [hidden]{display:none!important}
+
+/* Phone CBT: one timer, then question/controls, then the unchanged navigator. */
+@media(max-width:767px){.test-layout{grid-template-columns:minmax(0,1fr)}.test-layout .test-side{display:contents}.test-layout .test-timer{grid-row:1;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:16px}.test-layout .live-question{grid-row:2}.test-layout .test-navigation{grid-row:3;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:16px}}
