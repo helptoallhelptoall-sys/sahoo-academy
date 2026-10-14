@@ -14,7 +14,7 @@ test('browser upload transport + isolated database: authentication, exact counts
  await db.query('insert into auth.users(id) values($1),($2)',[admin,student]);await db.query("update public.profiles set role='admin' where id=$1",[admin]);
  const rpc=async(actor,action,payload={})=>(await db.query('select public.academy_api($1,$2,$3) as r',[actor,action,JSON.stringify(payload)])).rows[0].r;
  const save=(entity,record)=>rpc(admin,'adminSave',{entity,record});
- await save('subjects',{id:'s',name:'Synthetic',exam_ids:[],price_paise:0,validity_months:3,published:true});await save('topics',{id:'topic',subject_id:'s',name:'Topic',published:true});
+ await save('exams',{id:'fixture-exam',name:'Fixture exam',published:true});await save('subjects',{id:'s',name:'Synthetic',exam_ids:['fixture-exam'],price_paise:0,validity_months:3,published:true});await save('topics',{id:'topic',subject_id:'s',name:'Topic',published:true});
  const draft={id:'draft',subject_id:'s',topic_id:'topic',title:'Synthetic upload',access:'free',duration_seconds:120,published:false};await save('tests',draft);
  const handler=makeHandler({rpc,getUser:async token=>({id:token,email_confirmed_at:'2026-01-01'}),config:{origins:['https://fixture.invalid']},inspectHtml:inspectUploadedHtml});
  const upload=(patch={},who=admin)=>handler(new Request('https://fixture.invalid',{method:'POST',headers:{'content-type':'application/json',origin:'https://fixture.invalid',...(who?{authorization:'Bearer '+who}:{})},body:JSON.stringify({action:'adminImportHtml',payload:{testId:'draft',html,expectedCount:2,...patch}})}));

@@ -13,7 +13,7 @@ test('private manual Questions: authorization, validation, review and immutable 
   await db.query('insert into auth.users(id) values($1),($2)',[admin,student]);await db.query("update public.profiles set role='admin' where id=$1",[admin]);
   const rpc=async(actor,action,payload={})=>(await db.query('select public.academy_api($1,$2,$3) as r',[actor,action,JSON.stringify(payload)])).rows[0].r;
   const save=(entity,record)=>rpc(admin,'adminSave',{entity,record});
-  await save('subjects',{id:'s',name:'Synthetic subject',exam_ids:[],price_paise:0,validity_months:3});await save('topics',{id:'topic',subject_id:'s',name:'Synthetic topic'});
+  await save('exams',{id:'fixture-exam',name:'Fixture exam',published:true});await save('subjects',{id:'s',name:'Synthetic subject',exam_ids:['fixture-exam'],price_paise:0,validity_months:3});await save('topics',{id:'topic',subject_id:'s',name:'Synthetic topic'});
   const draft={id:'manual',title:'Disposable fixture',subject_id:'s',topic_id:'topic',access:'free',duration_seconds:120,published:false};await save('tests',draft);
   const question={text:'ଓଡ଼ିଆ 🟢 <img onerror="attack()"> & English 😀',options:['First','Second','Third','Fourth'].map(text=>({text,isCorrect:true,answerKey:'ignored'})),correctIndex:1,explanation:'Private explanation ଓଡ଼ିଆ',tags:['Source unverified','Custom 😀']};
   const payload={testId:'manual',expectedRevision:0,question};
@@ -42,7 +42,7 @@ test('private manual Questions: authorization, validation, review and immutable 
   });
   await t.test('published content cannot be edited, and safe starts/reviews use existing scoring',async()=>{
    const before=(await rpc(admin,'adminQuestions'))[0];await assert.rejects(rpc(admin,'adminSaveQuestion',{...payload,number:1,expectedRevision:3}));assert.deepEqual((await rpc(admin,'adminQuestions'))[0],before);
-   await save('subjects',{id:'s',name:'Synthetic subject',exam_ids:[],price_paise:0,validity_months:3,published:true});await save('topics',{id:'topic',subject_id:'s',name:'Synthetic topic',published:true});await save('admin_settings',{telegram_required:false});
+   await save('subjects',{id:'s',name:'Synthetic subject',exam_ids:['fixture-exam'],price_paise:0,validity_months:3,published:true});await save('topics',{id:'topic',subject_id:'s',name:'Synthetic topic',published:true});await save('admin_settings',{telegram_required:false});
    const start=await rpc(student,'start',{testId:'manual',idempotencyKey:crypto.randomUUID()});assert.equal(start.status,'started');const safe=start.page.questions[0];for(const o of safe.options)assert.deepEqual(Object.keys(o).sort(),['id','text']);for(const key of ['correctOptionId','explanation','metadata'])assert.equal(key in safe,false);
    const result=await rpc(student,'submitAttempt',{attemptId:start.page.attemptId,answers:{[safe.id]:'o1'}});assert.equal(result.score,1);assert.equal(result.review[0].explanation,question.explanation);
   });
