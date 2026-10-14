@@ -126,6 +126,7 @@ async function startTest(id) {
     if(!Array.isArray(p.questions)||!p.questions.length||p.questions.some(q=>'correctOptionId' in q||'explanation' in q))return announce('Invalid protected question response.');
     state.session={remote:true,attemptId:p.attemptId,test:{...t,type:'Topic-wise',minutes:t.duration_seconds/60},items:p.questions.map(q=>({id:q.id,text:q.text,options:q.options.map(o=>o.text),optionIds:q.options.map(o=>o.id),subject:q.subjectLabel,tags:q.sourceTags})),answers:{},flags:new Set(),index:0,started:Date.now(),deadline:Date.now()+Date.parse(p.deadline)-Date.parse(p.serverNow)};
   }else state.session={test:t,items:t.ids.map(id=>questions.find(q=>q.id===id)),answers:{},flags:new Set(),index:0,started:Date.now(),deadline:Date.now()+t.minutes*60000};
+  state.session.route=location.hash;
   render();
   document.querySelector('#question-heading').setAttribute('tabindex','-1');
   document.querySelector('#question-heading').focus({preventScroll:true});
@@ -259,7 +260,7 @@ document.addEventListener('click',async e=>{
   if(el.matches('.skip-link')){e.preventDefault();document.querySelector('#main').focus();document.querySelector('#main').scrollIntoView();return;}
   if(el.matches('.menu-button')){const open=!document.querySelector('.sidebar').classList.contains('open');document.querySelector('.sidebar').classList.toggle('open',open);document.querySelector('.sidebar').inert=!open;document.querySelector('.mobile-shade').classList.toggle('open',open);el.setAttribute('aria-expanded',String(open));if(open)document.querySelector('.sidebar a').focus();return;}
   if(el.matches('.mobile-shade')){closeMenu();return;}
-  if(el.tagName==='A' && el.getAttribute('href')?.startsWith('#/') && state.session && el.hash!==`#/test/${state.session.test.id}`){e.preventDefault();exitTest(el.hash);return;}
+  if(el.tagName==='A' && el.getAttribute('href')?.startsWith('#/') && state.session && el.hash!==state.session.route){e.preventDefault();exitTest(el.hash);return;}
   if(el.dataset.orderTab){document.querySelectorAll('[data-order-tab]').forEach(b=>{const active=b===el;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});document.querySelector('#purchase-tab-content').innerHTML=commerce.orderTab(el.dataset.orderTab);return;}
   if(el.dataset.importAction==='load'){management.loadDemo();return;}
   if(el.dataset.importEdit!==undefined){management.editDemo(el.dataset.importEdit);return;}
@@ -313,7 +314,7 @@ document.addEventListener('submit',async e=>{
   if(e.target.id==='pyq-filter'){e.preventDefault();const id=document.querySelector('#pyq-exam').value,year=document.querySelector('#pyq-year').value;const eName=exams.find(x=>x.id===id)?.name || 'all exams';document.querySelector('#pyq-results').innerHTML=empty('No verified papers available',`No papers are available for ${eName} · ${year}. Try the original sample mocks while the library is prepared.`,link('tests','Explore sample tests','btn secondary'));announce('No verified papers available for these filters.');}
 });
 window.addEventListener('hashchange',()=>{
-  if(state.session && location.hash!==`#/test/${state.session.test.id}`){const next=location.hash;history.replaceState(null,'',`#/test/${state.session.test.id}`);render();exitTest(next);return;}
+  if(state.session && location.hash!==state.session.route){const next=location.hash;history.replaceState(null,'',state.session.route);render();exitTest(next);return;}
   state.adminSearch='';render();
 });
 window.addEventListener('resize',()=>{
