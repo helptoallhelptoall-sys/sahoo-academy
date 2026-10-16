@@ -1,0 +1,43 @@
+import assert from 'node:assert/strict';
+import {inspectCanonicalHtml} from '../scripts/html-import.mjs';
+export async function verifyAdminOrdering({page,go,db,rpc,admin}){
+ const checks=[],save=(entity,record)=>rpc(admin,'adminSave',{entity,record});
+ await save('exams',{id:'order-exam',name:'Ordering exam',published:true});
+ await save('subjects',{id:'order-subject',exam_ids:['order-exam'],name:'Ordering Computer',price_paise:0,published:true});
+ for(let n=1;n<=4;n++)await save('topics',{id:'order-topic-'+n,subject_id:'order-subject',name:'Ordering topic '+n,published:n!==2});
+ for(let n=1;n<=3;n++)await save('tests',{id:'order-test-'+n,subject_id:'order-subject',topic_id:'order-topic-1',title:'Ordering test '+n,access:'free',duration_seconds:1200,published:false});
+ const questions=Array.from({length:20},(_,i)=>({id:'order-q'+(i+1),number:i+1,text:'Ordering question '+(i+1)+' ଓଡ଼ିଆ',options:['A','B','C','D'].map((text,j)=>({id:'o'+j,text})),correctOptionId:'o2',explanation:'Ordering fixture explanation',tags:[],topic:'Fixture'}));
+ const html='<script type="application/json" id="sahoo-mock-data">'+JSON.stringify({questionCount:20,questions})+'</script>';
+ await rpc(admin,'adminImport',{testId:'order-test-1',html,import:inspectCanonicalHtml(html)});
+ const panel=entity=>page.locator('[data-order-panel="'+entity+'"]');
+ const scope=async(entity,parent)=>{await go('admin/'+entity);await panel(entity).locator('[data-order-scope]').selectOption(parent);await panel(entity).locator('[data-order-id]').first().waitFor();};
+ const waitFirst=async(entity,id)=>page.waitForFunction(({entity,id})=>document.querySelector('[data-order-panel="'+entity+'"] [data-order-id]')?.dataset.orderId===id,{entity,id});
+ const ids=entity=>panel(entity).locator('[data-order-id]').evaluateAll(es=>es.map(e=>e.dataset.orderId));
+ await page.setViewportSize({width:1280,height:1000});await scope('topics','order-subject');
+ await panel('topics').locator('[data-order-drag="order-topic-4"]').dragTo(panel('topics').locator('[data-order-id="order-topic-1"]'));
+ await waitFirst('topics','order-topic-4');assert.deepEqual(await ids('topics'),['order-topic-4','order-topic-1','order-topic-2','order-topic-3']);
+ await page.reload();await panel('topics').locator('[data-order-scope]').selectOption('order-subject');await waitFirst('topics','order-topic-4');
+ checks.push('Desktop topic drag 4 → 1 persists after reload, including hidden sibling');
+ await go('subject/order-subject?exam=order-exam');await page.getByRole('heading',{name:'Ordering Computer',exact:true}).waitFor();assert.deepEqual(await page.locator('main .grid .card h2').allTextContents(),['Ordering topic 4','Ordering topic 1','Ordering topic 3']);checks.push('Student topic cards follow saved order and omit hidden siblings');
+ await scope('tests','order-topic-1');await panel('tests').locator('[data-order-drag="order-test-3"]').dragTo(panel('tests').locator('[data-order-id="order-test-1"]'));await waitFirst('tests','order-test-3');
+ await page.reload();await panel('tests').locator('[data-order-scope]').selectOption('order-topic-1');await waitFirst('tests','order-test-3');
+ await panel('tests').locator('[data-order-id="order-test-3"] [data-order-step="1"]').click();await waitFirst('tests','order-test-1');checks.push('Mock test drag and keyboard-accessible move controls work within topic');
+ await scope('questions','order-test-1');
+ // Start native drag before scrolling the distant destination into view.
+ const source=panel('questions').locator('[data-order-drag="order-q20"]'),target=panel('questions').locator('[data-order-id="order-q5"]');
+ await source.scrollIntoViewIfNeeded();const from=await source.boundingBox();await page.mouse.move(from.x+from.width/2,from.y+from.height/2);await page.mouse.down();await page.mouse.move(from.x+from.width/2+12,from.y+from.height/2,{steps:4});
+ await target.scrollIntoViewIfNeeded();const to=await target.boundingBox();await page.mouse.move(to.x+to.width/2,to.y+to.height/2,{steps:8});await page.mouse.move(to.x+to.width/2+1,to.y+to.height/2);await page.mouse.up();
+ await page.waitForFunction(()=>document.querySelectorAll('[data-order-panel="questions"] [data-order-id]')[4]?.dataset.orderId==='order-q20');
+ await page.reload();await panel('questions').locator('[data-order-scope]').selectOption('order-test-1');
+ await page.waitForFunction(()=>document.querySelectorAll('[data-order-panel="questions"] [data-order-id]')[4]?.dataset.orderId==='order-q20');
+ assert.deepEqual((await db.query("select working from public.imports where test_id='order-test-1'")).rows[0].working[4],questions[19]);checks.push('Question drag 20 → 5 preserves options, stable answer ID, explanation and source record');
+ await page.setViewportSize({width:320,height:900});
+ const row=()=>panel('questions').locator('[data-order-id="order-q20"]');await row().locator('[name="position"]').fill('1');await row().getByRole('button',{name:'Move',exact:true}).click();await waitFirst('questions','order-q20');assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));checks.push('320px manual Display Order moves accurately without overflow');
+ await row().getByRole('button',{name:'Delete',exact:true}).click();await page.getByRole('dialog').waitFor();const dialog=page.getByRole('dialog');assert.match(await dialog.innerText(),/Questions: 1/);assert.match(await dialog.innerText(),/Imports: 1/);assert.match(await dialog.innerText(),/Referencing attempts: 0/);
+ await dialog.getByRole('button',{name:'Cancel',exact:true}).click();assert.equal((await db.query("select question_count from public.tests where id='order-test-1'")).rows[0].question_count,20);checks.push('Delete preview reports dependencies; cancellation leaves question intact');
+ await row().getByRole('button',{name:'Delete',exact:true}).click();await dialog.waitFor();await dialog.locator('[name="reason"]').fill('Remove isolated synthetic fixture');await dialog.locator('[name="confirmation"]').fill('wrong');await dialog.getByRole('button',{name:'Delete permanently',exact:true}).click();assert.equal(await dialog.isVisible(),true);assert.equal((await db.query("select question_count from public.tests where id='order-test-1'")).rows[0].question_count,20);
+ await dialog.locator('[name="confirmation"]').fill('Delete permanently');await dialog.getByRole('button',{name:'Delete permanently',exact:true}).click();await dialog.waitFor({state:'detached'});await waitFirst('questions','order-q1');assert.equal((await db.query("select question_count from public.tests where id='order-test-1'")).rows[0].question_count,19);checks.push('Exact typed confirmation deletes only selected active question and recalculates count');
+ const imp=(await db.query("select * from public.imports where test_id='order-test-1'")).rows[0];assert.equal(imp.source_html,html);assert.equal(imp.original.length,20);assert.equal(imp.removed,1);assert.equal(imp.pass2,false);assert.equal((await db.query("select published from public.tests where id='order-test-1'")).rows[0].published,false);checks.push('Deletion retains original import privately and invalidates content review/publication');
+ await page.screenshot({path:'test-artifacts/admin-order-mobile.png',fullPage:true});await page.setViewportSize({width:1280,height:1000});await scope('topics','order-subject');await page.screenshot({path:'test-artifacts/admin-order-desktop.png',fullPage:true});
+ checks.push('Mobile and desktop Admin reorder/delete controls remain accessible');return checks;
+}

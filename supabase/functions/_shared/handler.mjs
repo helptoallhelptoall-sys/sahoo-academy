@@ -1,6 +1,6 @@
 // Dependency-injected transport. All authorization and Telegram calls run on the server.
 export const PUBLIC_ACTIONS=new Set(['policy','catalog']);
-const ACTIONS=new Set([...PUBLIC_ACTIONS,'account','updateProfile','access','orders','createOrder','submitPayment','results','result','saveAttempt','submitAttempt','beginSocialLink','verify','start','adminQuestions','adminSaveQuestion','adminReviewQuestions','adminList','adminSave','adminReviewPayment','adminAccess','adminImportHtml','adminImportDetail','adminVerifyContent']);
+const ACTIONS=new Set([...PUBLIC_ACTIONS,'account','updateProfile','access','orders','createOrder','submitPayment','results','result','saveAttempt','submitAttempt','beginSocialLink','verify','start','adminOrderList','adminReorder','adminDeletePreview','adminDelete','adminQuestions','adminSaveQuestion','adminReviewQuestions','adminList','adminSave','adminReviewPayment','adminAccess','adminImportHtml','adminImportDetail','adminVerifyContent']);
 export const sha256=async s=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s))),b=>b.toString(16).padStart(2,'0')).join('');
 async function boundedText(request,limit){
   if(Number(request.headers.get('content-length'))>limit)throw new Error('REQUEST_TOO_LARGE');
