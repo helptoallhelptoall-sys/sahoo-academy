@@ -27,3 +27,27 @@ test('paid and exempt free mocks make no Telegram requests during outages',async
 test('Telegram timeout is an explicit retry state and never starts a mock',async()=>{
   const {handler,calls}=setup({fetcher:async()=>{throw Error('fixture timeout');}});const r=await(await handler(request('start',{testId:'free'}))).json();assert.equal(r.status,'denied');assert.equal(r.freeAccess.status,'verification_unavailable');assert.ok(!calls.some(c=>c.action==='start'));
 });
+
+
+test('rolling upgrade advertises Edge protocol independently of schema activation',async()=>{
+ const {handler}=setup();const p=await(await handler(request('policy',{},null))).json();
+ assert.equal(p.attemptPolicyTransport,2);assert.equal(p.attemptPolicyActive,undefined);
+});
+test('client compatibility marker reaches both free and paid starts without selecting server scoring',async()=>{
+ for(const access of ['free','paid']){
+  let seen;
+  const {handler}=setup({rpc:async(actor,action,payload)=>{
+   if(action==='catalog')return {tests:[{id:'test',access}]};
+   if(action==='gateContext')return {required:false,policyVersion:3};
+   if(action==='start'){seen=payload;return {status:'started'};}return {};
+  }});
+  await handler(request('start',{testId:'test',clientPolicyVersion:2,expectedScoringVersion:2,scoringVersion:1,score:999}));
+  assert.equal(seen.clientPolicyVersion,2);assert.equal(seen.expectedScoringVersion,2);
+  assert.equal(seen.scoringVersion,undefined);assert.equal(seen.score,undefined);
+ }
+});
+test('stale policy error is an explicit refresh response, not a Telegram failure or raw SQL error',async()=>{
+ const {handler}=setup({rpc:async()=>{throw Object.assign(Error('private SQL detail'),{code:'P0002'});}});
+ const r=await handler(request('result',{attemptId:'fixture'}));assert.equal(r.status,409);
+ const body=await r.text();assert.match(body,/Refresh/);assert.doesNotMatch(body,/private SQL/);
+});

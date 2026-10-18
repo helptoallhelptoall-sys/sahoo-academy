@@ -28,7 +28,7 @@ export function makeHandler({rpc,getUser,config,inspectHtml,fetcher=fetch}){
       let user=null;if(bearer){try{user=await getUser(bearer);}catch{}if(!user?.id||!user.email_confirmed_at)return reply(401,{error:'Please log in with a confirmed email'});}
       if(!PUBLIC_ACTIONS.has(action)&&!user)return reply(401,{error:'Please log in'});
       const actor=user?.id??null;
-      if(PUBLIC_ACTIONS.has(action))return reply(200,await rpc(actor,action,{}));
+      if(PUBLIC_ACTIONS.has(action)){const data=await rpc(actor,action,{});return reply(200,action==='policy'?{...data,attemptPolicyTransport:2}:data);}
       if(action.startsWith('admin')){const profile=await rpc(actor,'account',{});if(profile.role!=='admin')return reply(403,{error:'Admin authorization required'});}
       if(['start','verify','beginSocialLink','createOrder'].includes(action))await rpc(actor,'rateLimit',{});
       if(action==='beginSocialLink'){
@@ -42,7 +42,7 @@ export function makeHandler({rpc,getUser,config,inspectHtml,fetcher=fetch}){
         const test=catalog.tests.find(t=>t.id===payload.testId);
         if(!test)return reply(200,{status:'denied',reason:'test_unavailable'});
         // Premium authorization is independent of all Telegram configuration/API state.
-        if(test.access==='paid')return reply(200,await rpc(actor,action,{testId:payload.testId,idempotencyKey:payload.idempotencyKey}));
+        if(test.access==='paid')return reply(200,await rpc(actor,action,{testId:payload.testId,idempotencyKey:payload.idempotencyKey,clientPolicyVersion:payload.clientPolicyVersion===2?2:1,expectedScoringVersion:payload.expectedScoringVersion}));
         const gate=await rpc(actor,'gateContext',{testId:payload.testId});
         const required=gate.required===true;
         let check={status:'not_required',verified:false},linked=false;
@@ -50,7 +50,7 @@ export function makeHandler({rpc,getUser,config,inspectHtml,fetcher=fetch}){
         const freeAccess={testId:payload.testId,policyVersion:gate.policyVersion,status:!required||check.verified?'eligible':check.status==='unavailable'?'verification_unavailable':'requirements_unmet',checks:[{provider:'telegram',required,status:check.status,linked,checkedAt:new Date().toISOString()}],checkedAt:new Date().toISOString()};
         if(required&&!check.verified)return reply(200,action==='verify'?freeAccess:{status:'denied',reason:freeAccess.status,freeAccess});
         // Never forward caller-supplied verification flags, user IDs or policy version.
-        const data=await rpc(actor,action,{testId:payload.testId,idempotencyKey:payload.idempotencyKey,telegramVerified:check.verified,telegramChatId:gate.channelId,policyVersion:gate.policyVersion});
+        const data=await rpc(actor,action,{testId:payload.testId,idempotencyKey:payload.idempotencyKey,clientPolicyVersion:payload.clientPolicyVersion===2?2:1,expectedScoringVersion:payload.expectedScoringVersion,telegramVerified:check.verified,telegramChatId:gate.channelId,policyVersion:gate.policyVersion});
         if(data.status==='denied')return reply(200,action==='verify'?{...freeAccess,status:'requirements_unmet',checks:[{provider:'telegram',required:true,status:'unavailable',linked}]}:{...data,freeAccess:{...freeAccess,status:'verification_unavailable',checks:[{provider:'telegram',required:true,status:'unavailable',linked}]}});
         if(action==='verify')return reply(200,data.status==='eligible'?freeAccess:{...freeAccess,status:'test_unavailable'});
         return reply(200,data);
@@ -62,7 +62,7 @@ export function makeHandler({rpc,getUser,config,inspectHtml,fetcher=fetch}){
         return reply(200,await rpc(actor,'adminImport',{testId:payload.testId,html:payload.html,import:imported}));
       }
       return reply(200,await rpc(actor,action,payload));
-    }catch(error){return reply(error?.message==='REQUEST_TOO_LARGE'?413:error?.code==='42501'?403:400,{error:error?.message==='REQUEST_TOO_LARGE'?'Maximum request size is 2 MB':error?.code==='42501'?'Access denied':'Request could not be completed. Check the fields, current access and existing record status.'});}
+    }catch(error){if(error?.code==='P0002')return reply(409,{error:'The test rules have been updated. Refresh the website before starting, editing timers or reviewing this attempt.'});return reply(error?.message==='REQUEST_TOO_LARGE'?413:error?.code==='42501'?403:400,{error:error?.message==='REQUEST_TOO_LARGE'?'Maximum request size is 2 MB':error?.code==='42501'?'Access denied':'Request could not be completed. Check the fields, current access and existing record status.'});}
   };
 }
 export function makeWebhook({rpc,secret}){return async request=>{
