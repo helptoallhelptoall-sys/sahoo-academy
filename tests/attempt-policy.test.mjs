@@ -19,7 +19,8 @@ test('versioned scoring and Automatic/Manual timers in the protected SQL path',a
   await db.exec("create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key,raw_user_meta_data jsonb default '{}');create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;");
   for(const f of fs.readdirSync('supabase/migrations').sort().filter(f=>f<'202610170001'))await db.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'));
   await db.query('insert into auth.users(id) values($1),($2)',[admin,student]);await db.query("update public.profiles set role='admin' where id=$1",[admin]);
-  const rpc=async(who,action,payload={})=>(await db.query('select public.academy_api($1,$2,$3) r',[who,action,JSON.stringify(payload)])).rows[0].r;
+  const rawRpc=async(who,action,payload={})=>(await db.query('select public.academy_api($1,$2,$3) r',[who,action,JSON.stringify(payload)])).rows[0].r;
+  const rpc=(who,action,payload={})=>rawRpc(who,action,{...payload,clientPolicyVersion:2});
   const save=(entity,record)=>rpc(admin,'adminSave',{entity,record});
   await save('exams',{id:'e',name:'Fixture',published:true});
   await save('subjects',{id:'s',name:'Computer',exam_ids:['e'],published:true,price_paise:0});
@@ -45,6 +46,27 @@ test('versioned scoring and Automatic/Manual timers in the protected SQL path',a
   await t.test('SQL and frontend classifications agree; unknowns fail closed to normal timing',async()=>{
    for(const name of [...extendedTimerSubjects,'GENERAL   REASONING','Computer','Reasoning history','',null])assert.equal((await db.query('select public.academy_seconds_per_question($1) n',[name])).rows[0].n,secondsPerQuestion(name));
   });
+  await t.test('old and new clients on migrated schema OFF keep legacy saves and scoring',async()=>{
+   assert.equal((await rpc(null,'policy')).attemptPolicyActive,false);
+   for(const caller of [rawRpc,rpc]){
+    await caller(admin,'adminSave',{entity:'tests',record:{...record,id:'legacy-save',duration_seconds:820}});
+    await caller(admin,'adminSave',{entity:'tests',record:{...record,id:'legacy-save',duration_seconds:1200}});
+    const saved=(await db.query("select * from public.tests where id='legacy-save'")).rows[0];
+    assert.equal(saved.duration_seconds,1200);assert.equal(saved.manual_duration_seconds,1200);assert.equal(saved.timer_mode,'manual');
+    const a=await caller(student,'start',{testId:'t',idempotencyKey:crypto.randomUUID()});assert.equal(a.page.scoringVersion,1);
+    const r=await caller(student,'submitAttempt',{attemptId:a.page.attemptId,answers:{q0:'o1',q1:'o0'}});assert.equal(r.score,1);assert.equal(r.negativeMarks,0);
+   }
+   await assert.rejects(save('tests',{...record,timer_mode:'automatic'}),/not activated/);
+   await assert.rejects(rpc(student,'start',{testId:'t',idempotencyKey:crypto.randomUUID(),expectedScoringVersion:2}),e=>e.code==='P0002');
+   await save('admin_settings',{telegram_required:false,attempt_policy_v2_enabled:true});assert.equal((await rpc(null,'policy')).attemptPolicyActive,false);
+   for(const role of ['anon','authenticated']){await db.exec('set role '+role);await assert.rejects(db.exec('update public.admin_settings set attempt_policy_v2_enabled=true'));await db.exec('reset role');}
+   // Old direct service write remains compatible, with unchanged question count.
+   await db.exec("update public.tests set duration_seconds=900 where id='legacy-save'");
+   assert.equal((await db.query("select manual_duration_seconds n from public.tests where id='legacy-save'")).rows[0].n,900);
+   for(const who of [null,student,admin])await assert.rejects(rpc(who,'activateAttemptPolicy',{}));
+  });
+  // Only the trusted operator enables this in the isolated fixture. No browser action can.
+  await db.exec('update public.admin_settings set attempt_policy_v2_enabled=true');
   await t.test('explicit Automatic mode, count changes and subject-name changes recalculate',async()=>{
    await save('tests',{...record,timer_mode:'automatic'});assert.equal((await row()).duration_seconds,2000);
    for(const [count,duration] of [[60,1200],[41,820],[100,2000]]){await db.query("update public.tests set question_count=$1 where id='t'",[count]);assert.equal((await row()).duration_seconds,duration);}
@@ -73,8 +95,22 @@ test('versioned scoring and Automatic/Manual timers in the protected SQL path',a
   });
   await t.test('existing attempt resumes original timer and original +1/0 scoring',async()=>{
    await db.exec("update public.tests set published=true where id='t'");
-   const resumed=await start(legacyKey);assert.equal(resumed.page.deadline,legacy.page.deadline);assert.deepEqual(resumed.page.questions,legacy.page.questions);assert.equal(resumed.page.scoringVersion,1);
-   const r=await rpc(student,'submitAttempt',{attemptId:legacy.page.attemptId,answers:{q0:'o1',q1:'o0'},scoringVersion:2});assert.equal(r.score,1);assert.equal(r.negativeMarks,0);
+   const resumed=await rawRpc(student,'start',{testId:'t',idempotencyKey:legacyKey});assert.equal(resumed.page.deadline,legacy.page.deadline);assert.deepEqual(resumed.page.questions,legacy.page.questions);assert.equal(resumed.page.scoringVersion,1);
+   const r=await rawRpc(student,'submitAttempt',{attemptId:legacy.page.attemptId,answers:{q0:'o1',q1:'o0'},scoringVersion:2});assert.equal(r.score,1);assert.equal(r.negativeMarks,0);
+  });
+  await t.test('stale clients cannot create or consume policy 2, even after disabling activation',async()=>{
+   await assert.rejects(rawRpc(student,'start',{testId:'t',idempotencyKey:crypto.randomUUID()}),e=>e.code==='P0002');
+   await assert.rejects(rawRpc(admin,'adminSave',{entity:'tests',record:{...record,duration_seconds:600}}),e=>e.code==='P0002');
+   await assert.rejects(rpc(student,'start',{testId:'t',idempotencyKey:crypto.randomUUID(),expectedScoringVersion:1}),e=>e.code==='P0002');
+   const key=crypto.randomUUID(),a=await start(key);
+   const blocked=async()=>{
+    await assert.rejects(rawRpc(student,'start',{testId:'t',idempotencyKey:key}),e=>e.code==='P0002');
+    for(const action of ['saveAttempt','submitAttempt','result'])await assert.rejects(rawRpc(student,action,{attemptId:a.page.attemptId,answers:{q0:'o0'}}),e=>e.code==='P0002');
+   };
+   await blocked();await db.exec('update public.admin_settings set attempt_policy_v2_enabled=false');await blocked();
+   const r=await rpc(student,'submitAttempt',{attemptId:a.page.attemptId,answers:{q0:'o1',q1:'o0'}});assert.equal(r.score,.75);
+   await blocked();await db.exec('update public.admin_settings set attempt_policy_v2_enabled=true');
+   assert.deepEqual(await rawRpc(student,'result',{attemptId:historical.page.attemptId}),historicalResult);
   });
   await t.test('new attempt saves effective timer/policy; later edits cannot change it',async()=>{
    const key=crypto.randomUUID(),a=await start(key);assert.equal(a.page.durationSeconds,3000);assert.equal(a.page.scoringVersion,2);

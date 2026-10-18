@@ -1,8 +1,9 @@
 -- Forward-only policy: existing attempts retain deadlines, snapshots and legacy scoring.
--- Existing submitted result JSON is never recomputed. New attempts use policy 2.
+-- Existing submitted result JSON is never recomputed. Policy 2 stays OFF until
+-- a trusted operator activates it after verifying the compatible Edge + app.
 begin;
+alter table public.admin_settings add column attempt_policy_v2_enabled boolean not null default false;
 alter table public.attempts add column scoring_version integer not null default 1 check (scoring_version in (1,2));
-alter table public.attempts alter column scoring_version set default 2;
 
 create function public.academy_keep_scoring_version() returns trigger
 language plpgsql set search_path='' as $$
@@ -21,15 +22,19 @@ language sql immutable set search_path='' as $$
  'reasoning','general reasoning','logical reasoning','mental ability'
  ]) then 30 else 20 end
 $$;
--- Existing rows explicitly retain their effective manual duration. New tests default automatic.
+-- Compatible defaults: old writers still supply duration_seconds and get Manual.
 alter table public.tests add column timer_mode text not null default 'manual' check(timer_mode in ('automatic','manual'));
 alter table public.tests add column manual_duration_seconds integer check(manual_duration_seconds between 15 and 21600);
 update public.tests set manual_duration_seconds=duration_seconds;
-alter table public.tests alter column timer_mode set default 'automatic';
 create function public.academy_automatic_duration() returns trigger
 language plpgsql security definer set search_path='' as $$
 begin
  if new.timer_mode='manual' then
+   if TG_OP='INSERT' then
+     new.manual_duration_seconds := coalesce(new.manual_duration_seconds,new.duration_seconds);
+   elsif new.manual_duration_seconds is not distinct from old.manual_duration_seconds and new.duration_seconds is distinct from old.duration_seconds then
+     new.manual_duration_seconds := new.duration_seconds;
+   end if;
    if new.manual_duration_seconds is null then raise exception 'Manual duration is required'; end if;
    new.duration_seconds := new.manual_duration_seconds;
  else
@@ -61,8 +66,8 @@ declare
   out jsonb; qs jsonb; q jsonb; ans jsonb; review jsonb='[]'; count_correct integer=0; count_answered integer=0;
   n integer; expires timestamptz; target uuid; subject text; op text; key text; rec jsonb; verified boolean;
 begin
- select * into cfg from public.admin_settings where id=true;
- if action='policy' then return jsonb_build_object('version',cfg.version,'loginRequired',true,'recheckFreeAccessEveryAttempt',true,'telegramRequired',cfg.telegram_required,'telegramChannelUrl',cfg.telegram_url,'youtubeChannelUrl',cfg.youtube_url,'defaultValidityCalendarMonths',3); end if;
+ select * into cfg from public.admin_settings where id=true for share;
+ if action='policy' then return jsonb_build_object('attemptPolicySchema',2,'attemptPolicyActive',cfg.attempt_policy_v2_enabled,'version',cfg.version,'loginRequired',true,'recheckFreeAccessEveryAttempt',true,'telegramRequired',cfg.telegram_required,'telegramChannelUrl',cfg.telegram_url,'youtubeChannelUrl',cfg.youtube_url,'defaultValidityCalendarMonths',3); end if;
  if action='catalog' then return jsonb_build_object(
  'exams',(select coalesce(jsonb_agg(to_jsonb(e) order by e.name),'[]') from public.exams e where e.published),
  'subjects',(select coalesce(jsonb_agg(to_jsonb(s) order by s.name),'[]') from public.subjects s where s.published),
@@ -144,10 +149,12 @@ begin
    if testrow.access='paid' and not exists(select 1 from public.entitlements where student_id=actor and subject_id=testrow.subject_id and revoked_at is null and expires_at>now()) then return jsonb_build_object('status','denied','reason','subject_locked'); end if;
    -- telegramVerified is supplied only by the Edge Function after a fresh Bot API call.
    if testrow.access='free' and cfg.telegram_required and (coalesce((payload->>'telegramVerified')::boolean,false)=false or (payload->>'policyVersion')::integer is distinct from cfg.version) then return jsonb_build_object('status','denied','reason','requirements_unmet'); end if;
+   if cfg.attempt_policy_v2_enabled and payload->>'clientPolicyVersion' is distinct from '2' and not exists(select 1 from public.attempts a where a.student_id=actor and a.idempotency_key=(payload->>'idempotencyKey')::uuid and a.scoring_version=1) then raise exception 'Refresh required for the current attempt policy' using errcode='P0002'; end if;
    if action='verify' then return jsonb_build_object('status','eligible'); end if;
    -- Reuse an existing snapshot before consulting the current question bank.
    select * into attempt from public.attempts where student_id=actor and idempotency_key=(payload->>'idempotencyKey')::uuid;
    if attempt.id is null then
+     if payload ? 'expectedScoringVersion' and payload->>'expectedScoringVersion' is distinct from (case when cfg.attempt_policy_v2_enabled then '2' else '1' end) then raise exception 'Scoring policy changed; refresh the instructions' using errcode='P0002'; end if;
      select coalesce(jsonb_agg(shuffled order by entropy,number),'[]') into qs from (
        select number,pg_catalog.gen_random_uuid() as entropy,
          jsonb_set(content,'{options}',(select jsonb_agg(o.value order by o.entropy,o.position)
@@ -156,9 +163,10 @@ begin
        from public.questions where test_id=testrow.id
      ) randomized;
    if jsonb_array_length(qs)=0 or jsonb_array_length(qs)<>testrow.question_count then raise exception 'Test content unavailable'; end if;
-   insert into public.attempts(student_id,test_id,deadline,snapshot,idempotency_key) values(actor,testrow.id,now()+make_interval(secs=>testrow.duration_seconds),qs,(payload->>'idempotencyKey')::uuid) on conflict(student_id,idempotency_key) do nothing;
+   insert into public.attempts(student_id,test_id,deadline,snapshot,idempotency_key,scoring_version) values(actor,testrow.id,now()+make_interval(secs=>testrow.duration_seconds),qs,(payload->>'idempotencyKey')::uuid,case when cfg.attempt_policy_v2_enabled then 2 else 1 end) on conflict(student_id,idempotency_key) do nothing;
    end if;
    select * into attempt from public.attempts where student_id=actor and idempotency_key=(payload->>'idempotencyKey')::uuid;
+   if attempt.scoring_version=2 and payload->>'clientPolicyVersion' is distinct from '2' then raise exception 'Refresh required for the saved attempt policy' using errcode='P0002'; end if;
    if attempt.test_id<>testrow.id or attempt.submitted_at is not null or attempt.deadline<=now() then raise exception 'Attempt no longer available'; end if;
    select jsonb_agg(jsonb_build_object('id',x->>'id','number',position,'text',x->>'text','options',(select jsonb_agg(jsonb_build_object('id',o.value->'id','text',o.value->'text') order by o.position) from jsonb_array_elements(x->'options') with ordinality as o(value,position)),'subjectLabel',x->>'topic','sourceTags',x->'tags') order by position) into out from jsonb_array_elements(attempt.snapshot) with ordinality as saved(x,position);
    return jsonb_build_object('status','started','testId',testrow.id,'title',testrow.title,'access',testrow.access,'page',jsonb_build_object('attemptId',attempt.id,'deadline',attempt.deadline,'serverNow',now(),'scoringVersion',attempt.scoring_version,'correctMark',1,'incorrectMark',case when attempt.scoring_version=2 then -0.25 else 0 end,'durationSeconds',extract(epoch from attempt.deadline-attempt.started_at)::integer,'questions',out,'questionCount',jsonb_array_length(attempt.snapshot),'answers',attempt.answers,'flags',attempt.flags));
@@ -166,6 +174,7 @@ begin
  if action in ('saveAttempt','submitAttempt','result') then
    select * into attempt from public.attempts where id=(payload->>'attemptId')::uuid and student_id=actor for update;
    if attempt.id is null then raise exception 'Attempt unavailable' using errcode='42501'; end if;
+   if attempt.scoring_version=2 and payload->>'clientPolicyVersion' is distinct from '2' then raise exception 'Refresh required for the saved attempt policy' using errcode='P0002'; end if;
    select * into testrow from public.tests where id=attempt.test_id;
    if testrow.access='paid' and not exists(select 1 from public.entitlements where student_id=actor and subject_id=testrow.subject_id and revoked_at is null and expires_at>now()) then raise exception 'Subject access expired' using errcode='42501'; end if;
    if action='result' then if attempt.submitted_at is null then raise exception 'Submit the attempt first'; end if; return attempt.result; end if;
@@ -209,10 +218,13 @@ begin
    elsif op='subjects' then insert into public.subjects values(key,rec->>'name',array(select jsonb_array_elements_text(coalesce(rec->'exam_ids','[]'))),(rec->>'price_paise')::integer,coalesce((rec->>'validity_months')::integer,3),coalesce((rec->>'published')::boolean,false)) on conflict(id) do update set name=excluded.name,exam_ids=excluded.exam_ids,price_paise=excluded.price_paise,validity_months=excluded.validity_months,published=excluded.published;
    elsif op='topics' then insert into public.topics values(key,rec->>'subject_id',rec->>'name',coalesce((rec->>'published')::boolean,false)) on conflict(id) do update set name=excluded.name,published=excluded.published;
    elsif op='tests' then
+     if cfg.attempt_policy_v2_enabled and payload->>'clientPolicyVersion' is distinct from '2' then raise exception 'Refresh required before editing timers' using errcode='P0002'; end if;
+     if not(rec ? 'timer_mode') and exists(select 1 from public.tests where id=key and timer_mode='automatic') then raise exception 'Timer controls require a compatible client' using errcode='P0002'; end if;
+     if rec->>'timer_mode'='automatic' and not cfg.attempt_policy_v2_enabled then raise exception 'Automatic timers are not activated'; end if;
      if coalesce((rec->>'published')::boolean,false) and not exists(select 1 from public.imports where test_id=key and pass1 and pass2) then raise exception 'Both verification passes are required before publication'; end if;
      insert into public.tests(id,subject_id,topic_id,title,access,published,timer_mode,manual_duration_seconds)
      values(key,rec->>'subject_id',rec->>'topic_id',rec->>'title',rec->>'access',coalesce((rec->>'published')::boolean,false),
-       coalesce(rec->>'timer_mode',(select timer_mode from public.tests where id=key),'automatic'),
+       coalesce(rec->>'timer_mode',case when rec ? 'duration_seconds' then 'manual' end,(select timer_mode from public.tests where id=key),case when cfg.attempt_policy_v2_enabled then 'automatic' else 'manual' end),
        coalesce((rec->>'manual_duration_seconds')::integer,(rec->>'duration_seconds')::integer,(select manual_duration_seconds from public.tests where id=key)))
      on conflict(id) do update set title=excluded.title,access=excluded.access,published=excluded.published,timer_mode=excluded.timer_mode,manual_duration_seconds=excluded.manual_duration_seconds;
    elsif op='admin_settings' then

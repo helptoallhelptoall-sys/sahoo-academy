@@ -16,7 +16,7 @@ const checks=[],errors=[];let member=true,outage=false,activeResponse;
 const context=await browser.newContext({viewport:{width:1280,height:1000}}),page=await context.newPage();
 page.on('pageerror',e=>errors.push(e.message));
 const go=async path=>{await page.goto(base+'/#/'+path);await page.locator('#main').waitFor();};
-const rpc=async(actor,action,payload={})=>(await db.query('select public.academy_api($1,$2,$3) as result',[actor,action,JSON.stringify(payload)])).rows[0].result;
+const rpc=async(actor,action,payload={})=>(await db.query('select public.academy_api($1,$2,$3) as result',[actor,action,JSON.stringify({clientPolicyVersion:2,...payload})])).rows[0].result;
 const hostileTitle='ଓଡ଼ିଆ 😀 & "quotes" <img src="/icon.svg" onload="x=1"><span data-hostile-result>Test</span>';
 const hostileTopic='Topic ଓଡ଼ିଆ 😀 & "\'><img src="/icon.svg" onload="x=1"><span data-hostile-result>Subject</span>';
 const q={id:'q1',number:1,text:'Synthetic fixture question <img src=x onerror=alert(1)> 🟢',topic:hostileTopic,options:['one','two','three','four'].map((text,i)=>({id:'o'+i,text,isCorrect:i===1,answerKey:'o1',explanation:'private-option-explanation',metadata:{answer:'private-option-answer'}})),correctOptionId:'o1',explanation:'Fixture explanation',tags:['SAMPLE ONLY']};
@@ -41,6 +41,7 @@ const tokens=new Map();function session(id){const u=user(id),exp=Math.floor(Date
 try{
   await db.exec("create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key,raw_user_meta_data jsonb default '{}');create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;grant usage on schema auth to authenticated,anon;");
   for(const f of fs.readdirSync('supabase/migrations').sort())await db.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'));
+  await db.exec('update public.admin_settings set attempt_policy_v2_enabled=true');
   await db.query("insert into auth.users(id) values($1),($2)",[student,admin]);await db.query("update public.profiles set role='admin' where id=$1",[admin]);
   const save=(entity,record)=>rpc(admin,'adminSave',{entity,record});
   await save('exams',{id:'exam',name:'Fixture exam',published:true});await save('subjects',{id:'subject',name:'Fixture subject',exam_ids:['exam'],price_paise:9900,validity_months:3,published:true});await save('topics',{id:'topic',subject_id:'subject',name:'Fixture topic',published:true});

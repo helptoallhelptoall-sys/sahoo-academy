@@ -16,8 +16,8 @@ test('anonymous student cannot call verification or attempt endpoints',async()=>
 });
 test('every attempt refreshes session and policy and requests independent server authorization',async()=>{
   let sessions=0,policies=0,attempts=0;const keys=[];
-  const a=createLaunchAccess(fixture({getSession:async()=>{sessions++;return session;},getLaunchPolicy:async()=>{policies++;return {...launchPolicyPreview,version:policies};},startAttempt:async input=>{attempts++;keys.push(input.idempotencyKey);assert.deepEqual(Object.keys(input).sort(),['idempotencyKey','testId']);return allowed(input.testId);}}));
-  await a.verify('percentages');await a.start('percentages');await a.start('percentages');assert.equal(sessions,3);assert.equal(policies,3);assert.equal(attempts,2);assert.notEqual(keys[0],keys[1]);
+  const a=createLaunchAccess(fixture({getSession:async()=>{sessions++;return session;},getLaunchPolicy:async()=>{policies++;return {...launchPolicyPreview,version:policies};},startAttempt:async input=>{attempts++;keys.push(input.idempotencyKey);assert.deepEqual(Object.keys(input).sort(),['expectedScoringVersion','idempotencyKey','testId']);return allowed(input.testId);}}));
+  await a.verify('percentages');assert.equal((await a.start('percentages')).status,'started');assert.equal((await a.start('percentages')).status,'started');assert.equal(sessions,3);assert.equal(policies,3);assert.equal(attempts,2);assert.notEqual(keys[0],keys[1]);
 });
 test('lost membership after successful verification blocks start and restores requirement',async()=>{
   const a=createLaunchAccess(fixture({startAttempt:async()=>({status:'denied',reason:'requirements_unmet',freeAccess:{...eligible('percentages'),status:'requirements_unmet',checks:[{provider:'telegram',required:true,status:'not_member'}]}})}));
@@ -58,4 +58,21 @@ test('YouTube promotion configuration and obsolete flags cannot affect eligibili
     const calls=[];const a=createLaunchAccess(fixture({getLaunchPolicy:async()=>({...launchPolicyPreview,youtubeChannelUrl,youtubeRequired:true}),beginSocialLink:async provider=>{calls.push(provider);throw new Error('Unexpected linking');}}));
     assert.equal((await a.verify('percentages')).status,'eligible');assert.ok(await a.start('percentages'));assert.equal(Object.hasOwn(a.snapshot.policy,'youtubeRequired'),false);assert.deepEqual(a.snapshot.eligibility,null);assert.deepEqual(calls,[]);
   }
+});
+
+
+test('new UI activates only with matching schema, Edge transport and explicit server activation',async()=>{
+ for(const [capabilities,active] of [
+  [{},false],
+  [{attemptPolicySchema:2,attemptPolicyActive:true},false],
+  [{attemptPolicyTransport:2,attemptPolicyActive:true},false],
+  [{attemptPolicySchema:2,attemptPolicyTransport:2,attemptPolicyActive:false},false],
+  [{attemptPolicySchema:2,attemptPolicyTransport:2,attemptPolicyActive:true},true]
+ ]){
+  let sent;
+  const a=createLaunchAccess(fixture({getLaunchPolicy:async()=>({...launchPolicyPreview,version:1,...capabilities}),startAttempt:async payload=>{sent=payload;return allowed(payload.testId);}}));
+  assert.equal((await a.start('fixture')).status,'started');
+  assert.equal(a.snapshot.policy.attemptPolicyActive,active);
+  assert.equal(sent.expectedScoringVersion,active?2:1);
+ }
 });

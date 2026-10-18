@@ -10,7 +10,7 @@ export function createSupabaseGateway(client,config){
   const call=async(action,payload={})=>{
     const headers={'content-type':'application/json',apikey:config.publishableKey};
     if(!['policy','catalog'].includes(action)){const {data,error}=await client.auth.getSession();if(error||!data.session)throw new Error('Log in to continue');headers.authorization='Bearer '+data.session.access_token;}
-    const response=await fetch(config.url+'/functions/v1/academy-api',{method:'POST',headers,body:JSON.stringify({action,payload}),signal:AbortSignal.timeout(action==='adminImportHtml'?60000:25000)});
+    const response=await fetch(config.url+'/functions/v1/academy-api',{method:'POST',headers,body:JSON.stringify({action,payload:{...payload,clientPolicyVersion:2}}),signal:AbortSignal.timeout(action==='adminImportHtml'?60000:25000)});
     const body=await response.json();if(!response.ok)throw new Error(body.error||'Service unavailable');return body;
   };
   async function getSession(){const {data:{session},error}=await client.auth.getSession();if(error)throw error;if(!session)return {status:'anonymous'};const {data:{user},error:userError}=await client.auth.getUser();if(userError||!user?.email_confirmed_at)throw new Error('Confirm your email and log in');const profile=await call('account');return {status:'authenticated',student:{id:user.id,displayName:profile.display_name,email:user.email,emailVerified:true,role:profile.role},expiresAt:new Date(session.expires_at*1000).toISOString()};}

@@ -18,7 +18,7 @@ export function createLaunchAccess(gateway=launchGateway){
   async function sessionAndPolicy(ticket){
     const [session,receivedPolicy]=await Promise.all([gateway.getSession(),gateway.getLaunchPolicy()]);
     // A legacy YouTube requirement has no role in the current access policy.
-    const policy=receivedPolicy&&{version:receivedPolicy.version,loginRequired:receivedPolicy.loginRequired,recheckFreeAccessEveryAttempt:receivedPolicy.recheckFreeAccessEveryAttempt,telegramRequired:receivedPolicy.telegramRequired,telegramScope:receivedPolicy.telegramScope==='selected'?'selected':'all',telegramTestIds:Array.isArray(receivedPolicy.telegramTestIds)?receivedPolicy.telegramTestIds:[],youtubeChannelUrl:receivedPolicy.youtubeChannelUrl??null,youtubeChannelName:receivedPolicy.youtubeChannelName||'Sahoo ExamNexa',youtubeCtaText:receivedPolicy.youtubeCtaText||'Subscribe on YouTube',youtubeVideosUrl:receivedPolicy.youtubeVideosUrl??null,telegramChannelUrl:receivedPolicy.telegramChannelUrl??null,defaultValidityCalendarMonths:receivedPolicy.defaultValidityCalendarMonths};
+    const policy=receivedPolicy&&{attemptPolicyActive:receivedPolicy.attemptPolicySchema===2&&receivedPolicy.attemptPolicyTransport===2&&receivedPolicy.attemptPolicyActive===true,version:receivedPolicy.version,loginRequired:receivedPolicy.loginRequired,recheckFreeAccessEveryAttempt:receivedPolicy.recheckFreeAccessEveryAttempt,telegramRequired:receivedPolicy.telegramRequired,telegramScope:receivedPolicy.telegramScope==='selected'?'selected':'all',telegramTestIds:Array.isArray(receivedPolicy.telegramTestIds)?receivedPolicy.telegramTestIds:[],youtubeChannelUrl:receivedPolicy.youtubeChannelUrl??null,youtubeChannelName:receivedPolicy.youtubeChannelName||'Sahoo ExamNexa',youtubeCtaText:receivedPolicy.youtubeCtaText||'Subscribe on YouTube',youtubeVideosUrl:receivedPolicy.youtubeVideosUrl??null,telegramChannelUrl:receivedPolicy.telegramChannelUrl??null,defaultValidityCalendarMonths:receivedPolicy.defaultValidityCalendarMonths};
     if(ticket!==generation)return false;
     if(!validPolicy(policy))throw new Error('Invalid launch policy');
     if(session?.status==='anonymous'){state={...state,status:'anonymous',user:null,policy,eligibility:null,message:'Log in or register before attempting a mock test.'};return false;}
@@ -58,7 +58,7 @@ export function createLaunchAccess(gateway=launchGateway){
       state.eligibility=null;if(!await sessionAndPolicy(ticket))return null;
       // This endpoint MUST independently recheck login, current policy, Telegram membership,
       // publication and any paid entitlement before creating EACH attempt.
-      const result=await gateway.startAttempt({testId,idempotencyKey});if(ticket!==generation)return null;
+      const result=await gateway.startAttempt({testId,idempotencyKey,expectedScoringVersion:state.policy.attemptPolicyActive?2:1});if(ticket!==generation)return null;
       if(result?.status==='denied'){
         if(validEligibility(result.freeAccess,testId))state.eligibility=result.freeAccess;
         if(result.reason==='login_required'){state.status='anonymous';state.user=null;}

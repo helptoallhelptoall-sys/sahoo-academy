@@ -129,6 +129,26 @@ Run `npm run test:backend`, `npm run test:backend-browser`, `npm run test:recove
 
 ## Pending scoring/timer release — do not apply during development
 
-After separate release approval, verify migrations through `202610150001_admin_order_delete.sql` are already present, then apply only `202610170001_scoring_auto_timer.sql` once as a complete transaction. Do not rerun older migrations or use blind `db push`. This migration adds a saved attempt scoring version, adds explicit test timer mode/manual duration fields, and updates the internal start/submit response and timing triggers. It does not change existing effective test durations, saved deadlines, result JSON, questions, imports, entitlements or settings. Existing tests are explicitly Manual; switching one to Automatic is an intentional Admin action.
+After separate release approval, verify migrations through `202610150001_admin_order_delete.sql` are present. Apply only the complete `202610170001_scoring_auto_timer.sql` transaction once. Do not rerun older migrations or use blind `db push`. This corrected, unapplied migration installs compatibility fields with **activation OFF**. Existing tests retain Manual durations, and existing attempts retain deadlines, snapshots, scoring version 1 and historical result JSON. There is no content rewrite. DDL/backfill takes brief locks; use a quiet release window.
 
-Deploy the matching frontend with the migration; the existing `academy-api` transport needs no code change. Browser roles retain no direct internal-RPC access. Verify catalog durations, both Admin timer modes, legacy resume/results and a new controlled attempt after an approved activation. DDL takes brief locks; use a quiet release window. If activation fails, the transaction rolls back. After activation, do not remove policy fields or revert scoring functions blindly: policy-2 attempts must continue to use their saved rules. Prefer a reviewed forward repair.
+Staged activation (not executed during development):
+
+1. Apply the migration with `attempt_policy_v2_enabled=false`. Old and new clients can continue legacy starts, submissions and Manual saves. The new app sends the old `duration_seconds` field until activation, so deploying it before the database is also safe.
+2. Deploy this branch's `academy-api` and Pages artifact. The Edge change is required: it forwards client compatibility/version expectations on free and premium starts, advertises transport version 2, and gives an HTTP 409 refresh response for stale policy clients. Preserve CORS, secrets and all existing auth controls.
+3. Verify the public policy response has `attemptPolicySchema:2`, `attemptPolicyTransport:2`, `attemptPolicyActive:false`. Smoke-test legacy scoring, saved results, existing attempt resume/deadline, and Manual create/edit. Verify the new Pages build is serving and the old/new compatibility tests pass.
+4. Only after these checks and explicit owner activation approval, use the trusted SQL Editor/operator connection (never browser/service credentials in frontend) to run:
+
+```sql
+begin;
+update public.admin_settings
+set attempt_policy_v2_enabled=true, version=version+1
+where id=true and attempt_policy_v2_enabled=false
+returning attempt_policy_v2_enabled, version;
+commit;
+```
+
+5. Confirm all three policy fields now advertise readiness/activation. Verify one controlled new attempt (+1/−0.25/0 and decimal result), both timer modes, and legacy resume/results. **No existing test switches to Automatic**: changing an existing test remains a separate deliberate Admin action. New tests default Automatic only through the active compatible API; legacy/direct-write defaults stay Manual.
+
+The flag is server-owned: browser roles cannot update it, and ordinary Admin settings payloads cannot activate it. The database checks client protocol support on policy-2 starts/resumes/saves/submissions/reviews, including after the flag is turned OFF again. A stale old tab must refresh to start a new policy-2 attempt or review one; it may show its older generic access error but cannot display a wrong score. Legacy attempts can still finish with +1/0. A policy change between displayed instructions and a fresh start rejects that start without inserting an attempt; refresh the instructions and retry. Old timer writes are accepted before activation and rejected after activation rather than overwriting Automatic settings. New fallback timer saves cannot silently turn an existing Automatic test into Manual.
+
+Rollback: turning the flag OFF stops policy-2 **new** attempts; it does not recompute existing scores, deadlines or test durations, or change saved timer modes. Keep the compatible app/Edge/SQL for all already-created policy-2 attempts. Do not roll back to the old app after activation, remove version columns, or replace scoring functions blindly. Prefer a reviewed forward repair. To change existing Automatic tests back to Manual, use the compatible Admin controls deliberately before disabling activation. No migration history repair is needed.
