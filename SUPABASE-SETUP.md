@@ -1,5 +1,10 @@
 # Sahoo ExamNexa — minimum Supabase launch setup
 
+For the staged `https://sahooexamnexa.github.io/` migration, follow
+[ROOT-PAGES-MIGRATION.md](ROOT-PAGES-MIGRATION.md). It lists exact additional
+production callbacks/origins and release order. Those settings have not been
+changed by the Priority #4 development work; no database migration is required.
+
 Status checked on 5 October 2026: the **Sahoo ExamNexa** project (`dtacpfeemvmdzzgwqscj`) exists, the schema and `202610040001_safe_attempt_options.sql` security migration are applied, and `academy-api` is deployed. Both GitHub public configuration variables are set. Production-origin CORS and anonymous Admin denial have been verified. The website has **not** been deployed by this production-build task.
 
 Current content state (11 October 2026): the catalog contains the published 41-question FREE Solar System practice test, with a 41-minute timer and +1/0 scoring. One intended confirmed Admin was provisioned previously. Telegram is OFF for launch and paid sales remain disabled while UPI/payee/QR are unconfigured. This feature run does not change those records. The new Questions migration and permanent recovery callback are pending release steps described below; do not treat the locally tested features as already deployed.

@@ -15,7 +15,7 @@
     "build:pages": "node scripts/build-static.mjs",
     "preview:pages": "node scripts/preview-static.mjs",
     "test:recovery": "node tests/recovery-browser.mjs",
-    "test:pages": "node --test tests/static-build.test.mjs",
+    "test:pages": "node --test tests/static-build.test.mjs tests/production-seo.test.mjs",
     "test:rollout": "node tests/run-rollout-browser.mjs"
   },
   "dependencies": {

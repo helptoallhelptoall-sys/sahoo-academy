@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createRequire} from 'node:module';
-import {publicFiles} from '../scripts/public-files.mjs';
+import {publicFiles,generatedPublicFiles} from '../scripts/public-files.mjs';
 const require=createRequire(import.meta.url),{chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const base=process.env.TEST_BASE_URL||'http://127.0.0.1:4174/sahoo-academy/';
 const browser=await chromium.launch({channel:'msedge',headless:true}),page=await browser.newPage();
@@ -9,7 +9,7 @@ const errors=[],failed=[],consoleErrors=[];let expected404=false;
 page.on('pageerror',e=>errors.push(e.message));page.on('requestfailed',r=>failed.push(r.url()));
 page.on('console',m=>{if(m.type()==='error'&&!(expected404&&m.text().includes('404')))consoleErrors.push(m.text());});
 try{
- const files=fs.readdirSync('dist').sort();assert.deepEqual(files,[...publicFiles,'404.html','public-config.json','.nojekyll'].sort());
+ const files=fs.readdirSync('dist').sort();assert.deepEqual(files,[...publicFiles,...generatedPublicFiles].sort());
  for(const f of files){const r=await page.request.get(base+f);assert.equal(r.status(),200,f);}
  const cfg=await(await page.request.get(base+'public-config.json')).json();assert.deepEqual(Object.keys(cfg).sort(),['publishableKey','url']);
  // Isolate cloud traffic: fixture tests below exercise the real handler/database separately.

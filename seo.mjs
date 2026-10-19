@@ -1,8 +1,9 @@
 // Local preview metadata. Production must select only PUBLIC/PUBLISHED records on the server.
 import {exams} from './data.js';
 import {subjectPlans} from './commerce.js';
+import {homeTitle,homeDescription} from './public-seo.js';
 const pages=new Map([
-  ['/',{title:'Sahoo ExamNexa | Competitive Exam Preparation',description:'Sahoo ExamNexa - Competitive Exam Preparation Platform for Odisha and All India Government Exams'}],
+  ['/',{title:homeTitle,description:homeDescription}],
   ['/exams',{title:'Odisha Competitive Exam Pathways',description:'Choose an Odisha exam, then explore subjects, topics and planned topic-wise mock tests at Sahoo ExamNexa.'}],
   ['/subjects',{title:'Three-Month Subject Subscriptions',description:'Choose a subject subscription covering its included topic-wise mock tests. Preview the Sahoo ExamNexa learning catalog.'}],
   ['/tests',{title:'Free Samples & Premium Topic-wise Mock Tests',description:'Try free CBT sample tests and explore locked premium tests included in subject subscriptions.'}]

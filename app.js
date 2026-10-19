@@ -7,6 +7,7 @@ import {createLaunchAccess,launchGateway,safeChannelUrl} from './launch-access.j
 import {createLaunchViews} from './launch-views.js';
 import {createBackendUI} from './backend-ui.js';
 import {siteRoute} from './site-path.js';
+import {homeTitle,homeDescription,indexableHome} from './public-seo.js';
 const access=createLaunchAccess(launchGateway);
 
 const app = document.querySelector('#app');
@@ -254,9 +255,11 @@ function render() {
   if(h1)document.title=h1.textContent.trim()+' | Sahoo ExamNexa';
   document.querySelector('meta[name="description"]').content=(document.querySelector('.page-title p')?.textContent || 'Sahoo ExamNexa: Odisha topic-wise mock tests, free samples and three-month subject subscriptions.').slice(0,180);
   if(page==='home'){
-    document.title='Sahoo ExamNexa | Competitive Exam Preparation';
-    document.querySelector('meta[name="description"]').content='Sahoo ExamNexa - Competitive Exam Preparation Platform for Odisha and All India Government Exams';
+    document.title=homeTitle;
+    document.querySelector('meta[name="description"]').content=homeDescription;
   }
+  const robots=document.querySelector('meta[name="robots"]');
+  if(robots)robots.content=robots.dataset.publicHome==='true'&&indexableHome(location,document.baseURI)?'index, follow':'noindex, nofollow';
   const changed=currentRoute!==raw;currentRoute=raw;
   if(changed){window.scrollTo(0,0);document.querySelector('#main').focus({preventScroll:true});}
 }

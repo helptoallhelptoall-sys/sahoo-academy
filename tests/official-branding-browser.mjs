@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {transform} from 'esbuild';
 import {authorizedModule} from './launch-browser-fixture.mjs';
-import {publicFiles} from '../scripts/public-files.mjs';
+import {publicFiles,generatedPublicFiles} from '../scripts/public-files.mjs';
 const require=createRequire(import.meta.url),{chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const base=process.env.TEST_BASE_URL||'http://127.0.0.1:4174/sahoo-academy/';
 const browser=await chromium.launch({channel:'msedge',headless:true});
@@ -32,7 +32,7 @@ async function branding(){
 try{
  fs.mkdirSync('test-artifacts',{recursive:true});
  assert.equal(createHash('sha256').update(fs.readFileSync('sahoo-examnexa-logo.png')).digest('hex'),'63145c1736e6de9aeabba0ce785e85a5da62afad4d9df00b7cf11495f616c5a6');
- assert.deepEqual(fs.readdirSync('dist').sort(),[...publicFiles,'404.html','public-config.json','.nojekyll'].sort());
+ assert.deepEqual(fs.readdirSync('dist').sort(),[...publicFiles,...generatedPublicFiles].sort());
  assert.equal(publicFiles.includes('icon.svg'),false);
  for(const size of [32,180,192,512]){
   const name='sahoo-examnexa-icon-'+size+'.png',bytes=fs.readFileSync(name);
@@ -41,7 +41,7 @@ try{
  }
  const manifest=JSON.parse(fs.readFileSync('dist/manifest.webmanifest'));
  assert.deepEqual(manifest.icons.map(i=>i.sizes),['192x192','512x512']);
- for(const i of manifest.icons){assert.equal(i.purpose,'any');assert.ok(new URL(i.src,base).pathname.startsWith('/sahoo-academy/'));}
+ for(const i of manifest.icons){assert.equal(i.purpose,'any');assert.ok(new URL(i.src,base).pathname.startsWith(new URL(base).pathname));}
  const css=await transform(fs.readFileSync('styles.css','utf8'),{loader:'css'});assert.deepEqual(css.warnings,[]);
  checks.push('Original logo hash, all icon dimensions/MIME, manifest, restricted artifact and CSS parser pass');
  for(const width of [1280,320]){

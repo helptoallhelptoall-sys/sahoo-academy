@@ -6,7 +6,7 @@ const root=fileURLToPath(new URL('../dist/',import.meta.url));
 const html=await readFile(root+'index.html','utf8');
 const base=html.match(/<base href="([^"]+)">/)[1];
 const files=new Set(await readdir(root));
-const mime={html:'text/html',js:'text/javascript',css:'text/css',json:'application/json',png:'image/png',svg:'image/svg+xml',webmanifest:'application/manifest+json'};
+const mime={html:'text/html; charset=utf-8',js:'text/javascript; charset=utf-8',css:'text/css',json:'application/json',xml:'application/xml',txt:'text/plain',png:'image/png',svg:'image/svg+xml',webmanifest:'application/manifest+json'};
 createServer(async(req,res)=>{
   if(!['GET','HEAD'].includes(req.method)){res.writeHead(405);return res.end();}
   let path;try{path=decodeURIComponent(new URL(req.url,'http://localhost').pathname);}catch{res.writeHead(400);return res.end();}

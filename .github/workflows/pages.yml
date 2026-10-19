@@ -32,6 +32,9 @@ jobs:
           PUBLIC_SITE_URL: ${{ steps.pages.outputs.base_url }}
           PUBLIC_SUPABASE_URL: ${{ vars.PUBLIC_SUPABASE_URL }}
           PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          # Keep unset until the new root site passes live verification.
+          # Accepted only on the exact old site, with the exact reviewed target.
+          PUBLIC_REDIRECT_TARGET: ${{ vars.PUBLIC_REDIRECT_TARGET }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
