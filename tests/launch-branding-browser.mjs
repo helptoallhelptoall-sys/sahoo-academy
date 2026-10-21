@@ -9,12 +9,12 @@ const page=await browser.newPage(),checks=[],errors=[];
 page.on('pageerror',e=>errors.push(e.message));
 const go=async route=>{await page.goto(testOrigin+'/#/'+route);await page.locator('.page-brand').waitFor();};
 try{
-  const expectedTitle='Sahoo ExamNexa | Competitive Exam Preparation';
-  const expectedDescription='Sahoo ExamNexa - Competitive Exam Preparation Platform for Odisha and All India Government Exams';
+  const expectedTitle='Sahoo ExamNexa – Odisha Competitive Exam Mock Tests & PYQs';
+  const expectedDescription='Prepare for Odisha competitive exams including Odisha Police SI, PEO and Civil Constable with topic-wise mock tests and clearly labelled previous-year questions (PYQs).';
   assert.deepEqual(fs.readdirSync('.').filter(f=>/index\.html$/i.test(f)),['index.html']);
   for(const url of [testOrigin+'/',testOrigin+'/index.html',testOrigin+'/#/home']){
     const response=await page.goto(url);const html=await response.text();
-    assert.ok(html.includes('<title>'+expectedTitle+'</title>'));
+    assert.ok(html.includes('<title>'+expectedTitle.replaceAll('&','&amp;')+'</title>'));
     assert.ok(html.includes('content="'+expectedDescription+'"'));
     await page.locator('.page-brand').waitFor();assert.equal(await page.title(),expectedTitle);
     assert.equal(await page.locator('meta[name="description"]').getAttribute('content'),expectedDescription);

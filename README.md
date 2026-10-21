@@ -1,5 +1,9 @@
 # Sahoo ExamNexa
 
+Priority #4 root URL/SEO development is staged in [ROOT-PAGES-MIGRATION.md](ROOT-PAGES-MIGRATION.md).
+The new organization repository is not deployed; the existing production URL remains live.
+That document specifies the exact Auth/CORS cutover, old-URL compatibility and rollback.
+
 Sahoo ExamNexa prepares students for Odisha competitive exams through **Topic-wise Mock Tests → Exam → Subject → Topic → Free/Premium Test**. The business model provides **three calendar months of subject access** covering included premium tests. Students do not buy individual HTML files. Disconnected preview prices are illustrative; connected mode uses only published database records.
 
 `index.html` is the sole root homepage. The earlier malformed homepage remains in Git history. The current design, mock-test functionality, importers and Supabase integration are preserved. The Sahoo ExamNexa cloud schema and option-security migration are configured, and `academy-api` is deployed. The approved 41-question FREE Solar System test is published in the backend; Telegram is OFF and paid sales remain disabled. The new recovery/Questions features still require the release configuration and live Auth delivery checks described below.
